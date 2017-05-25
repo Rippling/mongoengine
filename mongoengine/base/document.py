@@ -380,6 +380,7 @@ class BaseDocument(object):
         errors = {}
         if clean:
             try:
+                clean_kwargs = clean_kwargs or {}
                 self.clean(**clean_kwargs)
             except ValidationError, error:
                 errors[NON_FIELD_ERRORS] = error
