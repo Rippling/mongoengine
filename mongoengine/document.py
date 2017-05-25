@@ -250,7 +250,8 @@ class Document(BaseDocument):
 
     def save(self, force_insert=False, validate=True, clean=True,
              write_concern=None, cascade=None, cascade_kwargs=None,
-             _refs=None, save_condition=None, signal_kwargs=None, **kwargs):
+             _refs=None, save_condition=None, signal_kwargs=None,
+             clean_kwargs=None, **kwargs):
         """Save the :class:`~mongoengine.Document` to the database. If the
         document already exists, it will be updated, otherwise it will be
         created.
@@ -306,7 +307,7 @@ class Document(BaseDocument):
         signals.pre_save.send(self.__class__, document=self, **signal_kwargs)
 
         if validate:
-            self.validate(clean=clean)
+            self.validate(clean=clean, clean_kwargs=clean_kwargs)
 
         if write_concern is None:
             write_concern = {"w": 1}

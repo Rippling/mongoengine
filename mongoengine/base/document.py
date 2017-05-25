@@ -287,7 +287,7 @@ class BaseDocument(object):
         else:
             return hash(self.pk)
 
-    def clean(self):
+    def clean(self, **kwargs):
         """
         Hook for doing document level data cleaning before validation is run.
 
@@ -372,7 +372,7 @@ class BaseDocument(object):
 
         return data
 
-    def validate(self, clean=True):
+    def validate(self, clean=True, clean_kwargs=None):
         """Ensure that all fields' values are valid and that required fields
         are present.
         """
@@ -380,7 +380,7 @@ class BaseDocument(object):
         errors = {}
         if clean:
             try:
-                self.clean()
+                self.clean(**clean_kwargs)
             except ValidationError, error:
                 errors[NON_FIELD_ERRORS] = error
 
