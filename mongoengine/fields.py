@@ -2,15 +2,14 @@ import datetime
 import decimal
 import functools
 import itertools
-import re
 import time
 import urllib2
 import uuid
-import warnings
 from operator import itemgetter
 
+import re
 import six
-
+import warnings
 from mongoengine.base.proxy import DocumentProxy
 
 try:
@@ -875,6 +874,20 @@ class MapField(DictField):
         super(MapField, self).__init__(field=field, *args, **kwargs)
 
 
+
+def dereference_dbref(value, document_type):
+    if hasattr(value, 'cls'):
+        # Dereference using the class type specified in the reference
+        cls = get_document(value.cls)
+    else:
+        cls = document_type
+    value = cls._get_db().dereference(value)
+    if value is not None:
+        value = cls._from_son(value)
+    return value
+
+
+
 class ReferenceField(BaseField):
     """A reference to a document that will be automatically dereferenced on
     access (lazily).
@@ -951,15 +964,7 @@ class ReferenceField(BaseField):
         return super(ReferenceField, self).__get__(instance, owner)
 
     def dereference_dbref(self, value):
-        if hasattr(value, 'cls'):
-            # Dereference using the class type specified in the reference
-            cls = get_document(value.cls)
-        else:
-            cls = self.document_type
-        value = cls._get_db().dereference(value)
-        if value is not None:
-            value = cls._from_son(value)
-        return value
+        return dereference_dbref(value, self.document_type)
 
     def __get__(self, instance, owner):
         """Descriptor to allow lazy dereferencing.
@@ -1129,9 +1134,8 @@ class CachedReferenceField(BaseField):
         self._auto_dereference = instance._fields[self.name]._auto_dereference
         # Dereference DBRefs
         if self._auto_dereference and isinstance(value, DBRef):
-            value = self.document_type._get_db().dereference(value)
-            if value is not None:
-                instance._data[self.name] = self.document_type._from_son(value)
+            return DocumentProxy(
+                functools.partial(dereference_dbref, value=value, document_type=self.document_type), value.id)
 
         return super(CachedReferenceField, self).__get__(instance, owner)
 
