@@ -47,7 +47,7 @@ __all__ = [
     'FloatField', 'DecimalField', 'BooleanField', 'DateTimeField',
     'ComplexDateTimeField', 'EmbeddedDocumentField', 'ObjectIdField',
     'GenericEmbeddedDocumentField', 'DynamicField', 'ListField',
-    'SortedListField', 'EmbeddedDocumentListField', 'DictField',
+    'SortedListField', 'DictField',
     'MapField', 'ReferenceField', 'CachedReferenceField',
     'GenericReferenceField', 'BinaryField', 'GridFSError', 'GridFSProxy',
     'FileField', 'ImageGridFsProxy', 'ImproperlyConfigured', 'ImageField',
@@ -726,30 +726,6 @@ class ListField(ComplexBaseField):
                 return [self.field.prepare_query_value(op, v) for v in value]
             return self.field.prepare_query_value(op, value)
         return super(ListField, self).prepare_query_value(op, value)
-
-
-class EmbeddedDocumentListField(ListField):
-    """A :class:`~mongoengine.ListField` designed specially to hold a list of
-    embedded documents to provide additional query helpers.
-
-    .. note::
-        The only valid list values are subclasses of
-        :class:`~mongoengine.EmbeddedDocument`.
-
-    .. versionadded:: 0.9
-
-    """
-
-    def __init__(self, document_type, **kwargs):
-        """
-        :param document_type: The type of
-         :class:`~mongoengine.EmbeddedDocument` the list will hold.
-        :param kwargs: Keyword arguments passed directly into the parent
-         :class:`~mongoengine.ListField`.
-        """
-        super(EmbeddedDocumentListField, self).__init__(
-            field=EmbeddedDocumentField(document_type), **kwargs
-        )
 
 
 class SortedListField(ListField):

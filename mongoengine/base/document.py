@@ -18,9 +18,6 @@ from mongoengine.base.common import get_document, ALLOW_INHERITANCE
 from mongoengine.base.datastructures import (
     BaseDict,
     BaseList,
-    EmbeddedDocumentList,
-    StrictDict,
-    SemiStrictDict
 )
 from mongoengine.base.fields import ComplexBaseField
 

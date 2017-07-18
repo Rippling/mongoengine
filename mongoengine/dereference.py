@@ -3,7 +3,7 @@ from bson import DBRef, SON
 from mongoengine.python_support import txt_type
 
 from base import (
-    BaseDict, BaseList, EmbeddedDocumentList,
+    BaseDict, BaseList,
     TopLevelDocumentMetaclass, get_document
 )
 from fields import (ReferenceField, ListField, DictField, MapField)
@@ -199,8 +199,6 @@ class DeReference(object):
         if not hasattr(items, 'items'):
             is_list = True
             list_type = BaseList
-            if isinstance(items, EmbeddedDocumentList):
-                list_type = EmbeddedDocumentList
             as_tuple = isinstance(items, tuple)
             iterator = enumerate(items)
             data = []

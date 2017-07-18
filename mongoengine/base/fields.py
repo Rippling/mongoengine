@@ -10,7 +10,7 @@ from mongoengine.common import _import_class
 from mongoengine.errors import ValidationError
 from mongoengine.base.common import ALLOW_INHERITANCE
 from mongoengine.base.datastructures import (
-    BaseDict, BaseList, EmbeddedDocumentList
+    BaseDict, BaseList
 )
 
 __all__ = ("BaseField", "ComplexBaseField",
@@ -243,16 +243,11 @@ class ComplexBaseField(BaseField):
             # Document class being used rather than a document object
             return self
 
-        EmbeddedDocumentListField = _import_class('EmbeddedDocumentListField')
-
         value = super(ComplexBaseField, self).__get__(instance, owner)
 
         # Convert lists / values so we can watch for any changes on them
         if isinstance(value, (list, tuple)):
-            if (issubclass(type(self), EmbeddedDocumentListField) and
-                    not isinstance(value, EmbeddedDocumentList)):
-                value = EmbeddedDocumentList(value, instance, self.name)
-            elif not isinstance(value, BaseList):
+            if not isinstance(value, BaseList):
                 value = BaseList(value, instance, self.name)
             instance._data[self.name] = value
         elif isinstance(value, dict) and not isinstance(value, BaseDict):
