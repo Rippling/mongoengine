@@ -37,16 +37,11 @@ class QuerySet(BaseQuerySet):
         return iter(self._result_cache)
 
     def __len__(self):
-        """Since __len__ is called quite frequently (for example, as part of
-        list(qs)), we populate the result cache and cache the length.
         """
-        if self._len is not None:
-            return self._len
-        if self._has_more:
-            # populate the cache
-            list(self._iter_results())
-
-        self._len = len(self._result_cache)
+        We don't need to be pythonic here. Use one DB query for performance
+        """
+        if self._len is None:
+            self._len = self.count(with_limit_and_skip=True)
         return self._len
 
     def __repr__(self):
