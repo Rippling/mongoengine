@@ -1,3 +1,6 @@
+import inspect
+
+import sys
 from mongoengine.errors import OperationError
 from mongoengine.queryset.base import (BaseQuerySet, DO_NOTHING, NULLIFY,
                                        CASCADE, DENY, PULL)
@@ -102,6 +105,10 @@ class QuerySet(BaseQuerySet):
             self._len = super(QuerySet, self).count(with_limit_and_skip)
 
         return self._len
+
+    def to_list(self):
+        # list(qs) calls len, which issues an additional db call
+        return [i for i in self]
 
     def no_cache(self):
         """Convert to a non_caching queryset
