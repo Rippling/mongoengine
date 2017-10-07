@@ -33,125 +33,98 @@ NON_FIELD_ERRORS = '__all__'
 
 
 class BaseDocument(object):
-    __slots__ = ('_changed_fields', '_initialised', '_created', '_data',
-                 '_dynamic_fields', '_auto_id_field', '_db_field_map', '__weakref__')
-
     _dynamic = False
     _dynamic_lock = True
     STRICT = False
 
-    def __init__(self, *args, **values):
+    def __init__(self, **values):
         """
         Initialise a document or embedded document
 
-        :param __auto_convert: Try and will cast python objects to Object types
+        :param __auto_convert: Try and will cast python objects to Object types [ignored]
+        :param __only_fields: The fields that have been fetched from DB.
         :param values: A dictionary of values for the document
         """
         super(BaseDocument, self).__init__()
         self._initialised = False
-        self._created = True
-        if args:
-            # Combine positional arguments with named arguments.
-            # We only want named arguments.
-            field = iter(self._fields_ordered)
-            # If its an automatic id field then skip to the first defined field
-            if getattr(self, '_auto_id_field', False):
-                next(field)
-            for value in args:
-                name = next(field)
-                if name in values:
-                    raise TypeError(
-                        "Multiple values for keyword argument '" + name + "'")
-                values[name] = value
-
-        __auto_convert = values.pop("__auto_convert", True)
-
-        # 399: set default values only to fields loaded from DB
-        __only_fields = set(values.pop("__only_fields", values))
-
-        _created = values.pop("_created", True)
-
-        signals.pre_init.send(self.__class__, document=self, values=values)
-
-        # Check if there are undefined fields supplied to the constructor,
-        # if so raise an Exception.
         
-        # Commenting out the missing fields check. [Prasanna]
-        #if not self._dynamic and (self._meta.get('strict', True) or _created):
-        if False:
-            for var in values.keys():
-                if var not in self._fields.keys() + ['id', 'pk', '_cls', '_text_score']:
-                    msg = (
-                        "The field '{0}' does not exist on the document '{1}'"
-                    ).format(var, self._class_name)
-                    raise FieldDoesNotExist(msg)
-
-        if self.STRICT and not self._dynamic:
-            self._data = StrictDict.create(allowed_keys=self._fields_ordered)()
-        else:
-            # self._data = SemiStrictDict.create(
-            #     allowed_keys=self._fields_ordered)()
-            # Based on https://github.com/MongoEngine/mongoengine/issues/1230#issuecomment-316308308 [Saurav]
-            self._data = {}
-
+        
+        # Pop the known values.
+        self._created = values.pop("_created", True)
+        self._data = values.pop("_data", None)
+        
+        # Unused
+        __auto_convert = values.pop("__auto_convert", True) 
+        
+        # set default values only to fields loaded from DB
+        __only_fields = values.pop("__only_fields", None)
+        
+        self._python_data = {}
+        self._original_values = {}
         self._dynamic_fields = SON()
+        self._changed_fields = []
+        
+        if self._data is None:
+            self._data = values
+        else:
+            self._data = self._translate_db_fields(self._data)
 
-        # Assign default values to instance
-        if False:
-            for key, field in self._fields.iteritems():
-                if self._db_field_map.get(key, key) in __only_fields:
-                    continue
-                value = getattr(self, key, None)
-                setattr(self, key, value)
-
+        self._set_default_values(__only_fields)
+        
         if "_cls" not in values:
             self._cls = self._class_name
-        
-        # Set passed values after initialisation
-        if self._dynamic:
-            dynamic_data = {}
-            for key, value in values.iteritems():
-                if key in self._fields or key == '_id':
-                    setattr(self, key, value)
-                elif self._dynamic:
-                    dynamic_data[key] = value
-        else:
-            FileField = _import_class('FileField')
-            for key, value in values.iteritems():
-                if key == '__auto_convert':
-                    continue
-                key = self._reverse_db_field_map.get(key, key)
-                if key in self._fields or key in ('id', 'pk', '_cls'):
-                    if __auto_convert and value is not None:
-                        field = self._fields.get(key)
-                        if field and not isinstance(field, FileField):
-                            value = field.to_python(value)
-                    self.setattr_quick(key, value)
-                    # setattr(self, key, value)
-                else:
-                    self._data[key] = value
-                    
-        if True:
-            for key, field in self._fields.iteritems():
-                if key in self._data or field.default is None:
-                    continue
-                if self._db_field_map.get(key, key) in __only_fields:
-                    continue
-                value = getattr(self, key, None)
-                setattr(self, key, value)
-
-        # Set any get_fieldname_display methods
-        self.__set_field_display()
-
-        if self._dynamic:
-            self._dynamic_lock = False
-            for key, value in dynamic_data.iteritems():
-                setattr(self, key, value)
 
         # Flag initialised
         self._initialised = True
-        self._created = _created
-        signals.post_init.send(self.__class__, document=self)
+        
+    def _translate_db_fields(self, values):
+        # On fast-path, mostly we expect this map to be empty.
+        db_field_to_name_map = self.__class__._get_db_field_renames()
+        for db_field_name, name in db_field_to_name_map.iteritems():
+            if db_field_name in values:
+                values[name] = values[db_field_name]
+                del values[db_field_name]
+        return values
+        
+    def _set_default_values(self, only_fields):
+        default_value_fields = self.__class__._get_default_value_fields()
+        field_names = set(default_value_fields) - set(self._data)
+        
+        if only_fields:
+            field_names = field_names & set(only_fields)
+        
+        # On fast-path, we mostly expect fields_names to be empty.
+        # defaults mostly will have been saved in DB and will be there in _data.
+        for field_name in field_names:
+            field = default_value_fields[field_name]
+            default = field.default
+            if callable(default):
+                default = default()
+            self._data[field_name] = self._python_data[field_name] = default
+            self._changed_fields.append(field_name)
+            
+    @classmethod
+    def _fetch_cls_store(cls, name, fallback):
+        key = ('%s_%s' % (name, cls.__name__))
+        res = getattr(cls, key, None)
+        if res is not None:
+            return res
+        res = fallback()
+        setattr(cls, key, res)
+        return res
+        
+    @classmethod
+    def _get_default_value_fields(cls):
+        return cls._fetch_cls_store("_default_value_fields", 
+            lambda: { field_name : field for field_name, field in cls._fields.iteritems() \
+                        if field.default is not None })
+        
+    @classmethod
+    def _get_db_field_renames(cls):
+        return cls._fetch_cls_store("_db_field_renames", 
+            lambda: { field.db_field: field_name for field_name, field in cls._fields.iteritems() \
+                        if field.db_field != field_name })
+        
 
     def __delattr__(self, *args, **kwargs):
         """Handle deletions of fields"""
@@ -165,24 +138,6 @@ class BaseDocument(object):
             super(BaseDocument, self).__delattr__(*args, **kwargs)
 
     def __setattr__(self, name, value):
-        # Handle dynamic data only if an initialised dynamic document
-        if self._dynamic and not self._dynamic_lock:
-
-            if not hasattr(self, name) and not name.startswith('_'):
-                DynamicField = _import_class("DynamicField")
-                field = DynamicField(db_field=name)
-                field.name = name
-                self._dynamic_fields[name] = field
-                self._fields_ordered += (name,)
-
-            if not name.startswith('_'):
-                value = self.__expand_dynamic_values(name, value)
-
-            # Handle marking data as changed
-            if name in self._dynamic_fields:
-                self._data[name] = value
-                if hasattr(self, '_changed_fields'):
-                    self._mark_as_changed(name)
         try:
             self__created = self._created
         except AttributeError:
@@ -206,36 +161,6 @@ class BaseDocument(object):
 
         super(BaseDocument, self).__setattr__(name, value)
         
-    def setattr_quick(self, name, value):
-        super(BaseDocument, self).__setattr__(name, value)
-
-    def __getstate__(self):
-        data = {}
-        for k in ('_changed_fields', '_initialised', '_created',
-                  '_dynamic_fields', '_fields_ordered'):
-            if hasattr(self, k):
-                data[k] = getattr(self, k)
-        data['_data'] = self.to_mongo()
-        return data
-
-    def __setstate__(self, data):
-        if isinstance(data["_data"], SON):
-            data["_data"] = self.__class__._from_son(data["_data"])._data
-        for k in ('_changed_fields', '_initialised', '_created', '_data',
-                  '_dynamic_fields'):
-            if k in data:
-                setattr(self, k, data[k])
-        if '_fields_ordered' in data:
-            if self._dynamic:
-                setattr(self, '_fields_ordered', data['_fields_ordered'])
-            else:
-                _super_fields_ordered = type(self)._fields_ordered
-                setattr(self, '_fields_ordered', _super_fields_ordered)
-
-        dynamic_fields = data.get('_dynamic_fields') or SON()
-        for k in dynamic_fields.keys():
-            setattr(self, k, data["_data"].get(k))
-
     def __iter__(self):
         return iter(self._fields_ordered)
 
@@ -303,6 +228,16 @@ class BaseDocument(object):
             return super(BaseDocument, self).__hash__()
         else:
             return hash(self.pk)
+            
+    def __copy__(self):
+        cls = self.__class__
+        res = cls.__new__(cls)
+        res.__dict__.update(self.__dict__)
+        for k, v in res.__dict__.items():
+            if isinstance(v, (dict, list)):
+                import copy
+                setattr(res, k, copy.copy(v))
+        return res
 
     def clean(self):
         """
@@ -402,9 +337,20 @@ class BaseDocument(object):
                 errors[NON_FIELD_ERRORS] = error
 
         # Get a list of tuples of field names and their current values
-        fields = [(self._fields.get(name, self._dynamic_fields.get(name)),
-                   self._data.get(name)) for name in self._fields_ordered]
-
+        fields = []
+        for name in self._fields_ordered:
+            field = self._fields.get(name)
+            if field is None:
+                field = self._dynamic_fields.get(name)
+            value = self._python_data.get(name)
+            if value is None:
+                value = self._data.get(name)
+                if value is not None:
+                    value = field.to_python(value)
+                    self._python_data[name] = value
+            
+            fields.append((field, value))
+                    
         EmbeddedDocumentField = _import_class("EmbeddedDocumentField")
         GenericEmbeddedDocumentField = _import_class(
             "GenericEmbeddedDocumentField")
@@ -721,63 +667,11 @@ class BaseDocument(object):
 
     @classmethod
     def _from_son(cls, son, _auto_dereference=True, only_fields=None, created=False):
-        """Create an instance of a Document (subclass) from a PyMongo SON.
-        """
-        if not only_fields:
-            only_fields = []
-
-        # get the class name from the document, falling back to the given
-        # class if unavailable
-        class_name = son.get('_cls', cls._class_name)
-        data = dict(("%s" % key, value) for key, value in son.iteritems())
-
         # Return correct subclass for document type
+        class_name = son.get('_cls', cls._class_name)
         if class_name != cls._class_name:
             cls = get_document(class_name)
-
-        changed_fields = []
-        errors_dict = {}
-
-        fields = cls._fields
-        if not _auto_dereference:
-            fields = copy.copy(fields)
-
-        for field_name, field in fields.iteritems():
-            field._auto_dereference = _auto_dereference
-            if field.db_field in data:
-                value = data[field.db_field]
-                try:
-                    data[field_name] = (value if value is None
-                                        else field.to_python(value))
-                    if field_name != field.db_field:
-                        del data[field.db_field]
-                except (AttributeError, ValueError), e:
-                    errors_dict[field_name] = e
-            elif field.default:
-                default = field.default
-                if callable(default):
-                    default = default()
-                if isinstance(default, BaseDocument):
-                    changed_fields.append(field_name)
-                elif not only_fields or field_name in only_fields:
-                    changed_fields.append(field_name)
-
-        if errors_dict:
-            errors = "\n".join(["%s - %s" % (k, v)
-                                for k, v in errors_dict.items()])
-            msg = ("Invalid data to create a `%s` instance.\n%s"
-                   % (cls._class_name, errors))
-            raise InvalidDocumentError(msg)
-
-        if cls.STRICT:
-            data = dict((k, v)
-                        for k, v in data.iteritems() if k in cls._fields)
-        obj = cls(__auto_convert=False, _created=created, __only_fields=only_fields, **data)
-        obj._changed_fields = changed_fields
-        if not _auto_dereference:
-            obj._fields = fields
-
-        return obj
+        return cls(_data=son, _created=created, __only_fields=only_fields)
 
     @classmethod
     def _build_index_specs(cls, meta_indexes):
