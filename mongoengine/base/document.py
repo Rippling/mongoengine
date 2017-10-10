@@ -267,6 +267,23 @@ class BaseDocument(object):
 
         return self._data['_text_score']
 
+    def get_to_python_field(self, field_name):
+        _python_data = self._python_data
+        res = _python_data.get(field_name, None)
+        if res is not None: # Cache hit.
+            return res
+        
+        # Call to_python and cache the value.
+        res = self._data.get(field_name)
+        if res is not None:
+            field = self._fields[field_name]
+            res = field.to_python(res)
+            
+        _python_data[field_name] = res
+
+        return res
+
+    
     def to_mongo(self, use_db_field=True, fields=None):
         """
         Return as SON data ready for use with MongoDB.
@@ -285,7 +302,7 @@ class BaseDocument(object):
             if root_fields and field_name not in root_fields:
                 continue
 
-            value = self._data.get(field_name, None)
+            value = self.get_to_python_field(field_name)
             field = self._fields.get(field_name)
 
             if field is None and self._dynamic:
@@ -308,7 +325,7 @@ class BaseDocument(object):
             # Handle self generating fields
             if value is None and field._auto_gen:
                 value = field.generate()
-                self._data[field_name] = value
+                self._data[field_name] = self._python_data[field_name] = value
 
             if value is not None:
                 if use_db_field:
@@ -350,13 +367,7 @@ class BaseDocument(object):
             field = self._fields.get(name)
             if field is None:
                 field = self._dynamic_fields.get(name)
-            value = self._python_data.get(name)
-            if value is None:
-                value = self._data.get(name)
-                if value is not None:
-                    value = field.to_python(value)
-                    self._python_data[name] = value
-            
+            value = self.get_to_python_field(name)
             fields.append((field, value))
                     
         EmbeddedDocumentField = _import_class("EmbeddedDocumentField")

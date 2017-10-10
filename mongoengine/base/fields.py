@@ -112,20 +112,8 @@ class BaseField(object):
             # Document class being used rather than a document object
             return self
             
-        _python_data = instance._python_data
-        res = _python_data.get(self.name, None)
-        if res is not None: # Cache hit.
-            return res
+        return instance.get_to_python_field(self.name)
         
-        # Call to_python and cache the value.
-        res = instance._data.get(self.name)
-        if res is not None:
-            res = self.to_python(res)
-            
-        _python_data[self.name] = res
-
-        return res
-
     def __set__(self, instance, value):
         """Descriptor for assigning a value to a field in a document.
         """
