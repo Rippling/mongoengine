@@ -91,14 +91,17 @@ class BaseDocument(object):
         
     def _set_default_values(self, only_fields):
         default_value_fields = self.__class__._get_default_value_fields()
-        field_names = set(default_value_fields) - set(self._data)
-        
+        field_names = set(default_value_fields)
+
         if only_fields:
             field_names = field_names & set(only_fields)
-        
+            
         # On fast-path, we mostly expect fields_names to be empty.
         # defaults mostly will have been saved in DB and will be there in _data.
         for field_name in field_names:
+            value = self._data.get(field_name, None)
+            if value is not None:
+                continue
             field = default_value_fields[field_name]
             default = field.default
             if callable(default):
@@ -149,9 +152,11 @@ class BaseDocument(object):
         if (self._is_document and not self__created and
                 name in self._meta.get('shard_key', tuple()) and
                 self._data.get(name) != value):
-            OperationError = _import_class('OperationError')
-            msg = "Shard Keys are immutable. Tried to update %s" % name
-            raise OperationError(msg)
+            value_id = getattr(value, 'id', None)
+            if value_id != self._data.get(name):
+                OperationError = _import_class('OperationError')
+                msg = "Shard Keys are immutable. Tried to update %s" % name
+                raise OperationError(msg)
 
         try:
             self__initialised = self._initialised
