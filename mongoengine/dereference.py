@@ -192,7 +192,6 @@ class DeReference(object):
             elif '_cls' in items:
                 doc = get_document(items['_cls'])._from_son(items)
                 _cls = doc._data.pop('_cls', None)
-                del items['_cls']
                 doc._data = self._attach_objects(doc._data, depth, doc, None)
                 if _cls is not None:
                     doc._data['_cls'] = _cls
