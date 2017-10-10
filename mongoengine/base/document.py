@@ -65,11 +65,14 @@ class BaseDocument(object):
         self._changed_fields = []
         
         if self._data is None:
+            # Values were assigned in the constructor.
             self._data = values
             primary_key = self._data.pop("id", None)
             if primary_key:
                 setattr(self, "id", primary_key)
+            self._changed_fields = self._data.keys()
         else:
+            # Fast path: _data was directly passed. likely via `_from_son`
             self._data = self._translate_db_fields(self._data)
 
         self._set_default_values(__only_fields)
@@ -282,6 +285,15 @@ class BaseDocument(object):
         _python_data[field_name] = res
 
         return res
+        
+    def convert_to_python_data(self):
+        self._python_data = {}
+        for field_name, value in self._data.items():
+            if value is not None:
+                field = self._fields[field_name]
+                value = field.to_python(value)
+                self._data[field_name] = value
+        return self._data
 
     
     def to_mongo(self, use_db_field=True, fields=None):

@@ -71,7 +71,7 @@ class EmbeddedDocument(BaseDocument):
         
     def __eq__(self, other):
         if isinstance(other, self.__class__):
-            return self._data == other._data
+            return self.convert_to_python_data() == other.convert_to_python_data()
         return False
 
     def __ne__(self, other):
