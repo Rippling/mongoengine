@@ -66,6 +66,9 @@ class BaseDocument(object):
         
         if self._data is None:
             self._data = values
+            primary_key = self._data.pop("id", None)
+            if primary_key:
+                setattr(self, "id", primary_key)
         else:
             self._data = self._translate_db_fields(self._data)
 
