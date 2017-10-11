@@ -1560,7 +1560,7 @@ class FileField(BaseField):
             proxy.put(value)
             instance._data_set(key, proxy)
         else:
-            instance._data_set(key, proxy)
+            instance._data_set(key, value)
 
         instance._mark_as_changed(key)
 

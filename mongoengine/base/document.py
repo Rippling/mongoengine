@@ -82,6 +82,8 @@ class BaseDocument(object):
             self._data = self._translate_db_fields(self._data)
         else:
             # Values were assigned in the constructor.
+            self._data = {}
+            FileField = _import_class('FileField')
             for key, value in values.iteritems():
                 if key in self._fields or key in ('id', 'pk', '_cls'):
                     if value is not None:
@@ -99,6 +101,9 @@ class BaseDocument(object):
 
         # Flag initialised
         self._initialised = True
+    
+    def setattr_quick(self, name, value):    
+        super(BaseDocument, self).__setattr__(name, value)
         
     def _translate_db_fields(self, values):
         # On fast-path, mostly we expect this map to be empty.
