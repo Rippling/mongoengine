@@ -37,7 +37,7 @@ class BaseDocument(object):
     _dynamic_lock = True
     STRICT = False
 
-    def __init__(self, **values):
+    def __init__(self, *args, **values):
         """
         Initialise a document or embedded document
 
@@ -48,7 +48,6 @@ class BaseDocument(object):
         super(BaseDocument, self).__init__()
         self._initialised = False
         
-        
         # Pop the known values.
         self._created = values.pop("_created", True)
         self._data = values.pop("_data", None)
@@ -58,6 +57,20 @@ class BaseDocument(object):
         
         # set default values only to fields loaded from DB
         __only_fields = values.pop("__only_fields", None)
+        
+        if args:
+            # Combine positional arguments with named arguments.
+            # We only want named arguments.
+            field = iter(self._fields_ordered)
+            # If its an automatic id field then skip to the first defined field
+            if getattr(self, '_auto_id_field', False):
+                next(field)
+            for value in args:
+                name = next(field)
+                if name in values:
+                    raise TypeError(
+                        "Multiple values for keyword argument '" + name + "'")
+                values[name] = value        
         
         self._python_data = {}
         self._original_values = {}

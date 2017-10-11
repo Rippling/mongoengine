@@ -111,7 +111,6 @@ class BaseField(object):
         if instance is None:
             # Document class being used rather than a document object
             return self
-            
         return instance._data_get(self.name)
         
     def __set__(self, instance, value):

@@ -965,7 +965,7 @@ class ReferenceField(BaseField):
         if self._auto_dereference and isinstance(value, DBRef):
             value = dereference_dbref(value, self.document_type)
             if value is not None:
-                instance._set_data(self.name, value)
+                instance._data_set(self.name, value)
 
         return super(ReferenceField, self).__get__(instance, owner)
 
@@ -1140,7 +1140,7 @@ class CachedReferenceField(BaseField):
     def dereference(self, instance, owner, value):
         value = self.document_type._get_db().dereference(value)
         if value is not None:
-            instance._set_data(self.name, self.document_type._from_son(value))
+            instance._data_set(self.name, self.document_type._from_son(value))
         return super(CachedReferenceField, self).__get__(instance, owner)
 
     def __get__(self, instance, owner):
@@ -1276,7 +1276,7 @@ class GenericReferenceField(BaseField):
 
         self._auto_dereference = instance._fields[self.name]._auto_dereference
         if self._auto_dereference and isinstance(value, (dict, SON)):
-            instance._set_data(self.name, self.dereference(value))
+            instance._data_set(self.name, self.dereference(value))
 
         return super(GenericReferenceField, self).__get__(instance, owner)
 
