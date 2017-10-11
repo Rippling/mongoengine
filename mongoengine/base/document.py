@@ -77,16 +77,20 @@ class BaseDocument(object):
         self._dynamic_fields = SON()
         self._changed_fields = []
         
-        if self._data is None:
-            # Values were assigned in the constructor.
-            self._data = values
-            primary_key = self._data.pop("id", None)
-            if primary_key:
-                setattr(self, "id", primary_key)
-            self._changed_fields = self._data.keys()
-        else:
+        if self._data is not None:
             # Fast path: _data was directly passed. likely via `_from_son`
             self._data = self._translate_db_fields(self._data)
+        else:
+            # Values were assigned in the constructor.
+            for key, value in values.iteritems():
+                if key in self._fields or key in ('id', 'pk', '_cls'):
+                    if value is not None:
+                        field = self._fields.get(key)
+                        if field and not isinstance(field, FileField):
+                            value = field.to_python(value)
+                    self.setattr_quick(key, value)
+                else:
+                    self._data[key] = value
 
         self._set_default_values(__only_fields)
         
