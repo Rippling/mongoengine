@@ -99,7 +99,7 @@ class DeReference(object):
         for item in iterator:
             if type(item) is not DocumentProxy and isinstance(item, (Document, EmbeddedDocument)):
                 for field_name, field in item._fields.iteritems():
-                    v = item._data.get(field_name, None)
+                    v = item._data_get(field_name)
                     if type(v) is DocumentProxy or isinstance(v, DBRef):
                         reference_map.setdefault(field.document_type, set()).add(v.id)
                     elif isinstance(v, (dict, SON)) and '_ref' in v:
@@ -223,16 +223,16 @@ class DeReference(object):
                 data[k] = self.object_map.get((v.collection, v.id), v)
             elif isinstance(v, (Document, EmbeddedDocument)):
                 for field_name in v._fields:
-                    v = data[k]._data.get(field_name, None)
+                    v = data[k]._data_get(field_name)
                     if type(v) is DocumentProxy or isinstance(v, DBRef):
-                        data[k]._data[field_name] = self.object_map.get(
-                            (v.collection, v.id), v)
+                        data[k]._data_set(field_name, self.object_map.get(
+                            (v.collection, v.id), v))
                     elif isinstance(v, (dict, SON)) and '_ref' in v:
-                        data[k]._data[field_name] = self.object_map.get(
-                            (v['_ref'].collection, v['_ref'].id), v)
+                        data[k]._data_set(field_name, self.object_map.get(
+                            (v['_ref'].collection, v['_ref'].id), v))
                     elif isinstance(v, (dict, list, tuple)) and depth <= self.max_depth:
                         item_name = six.text_type('{0}.{1}.{2}').format(name, k, field_name)
-                        data[k]._data[field_name] = self._attach_objects(v, depth, instance=instance, name=item_name)
+                        data[k]._data_set(field_name, self._attach_objects(v, depth, instance=instance, name=item_name))
             elif isinstance(v, (dict, list, tuple)) and depth <= self.max_depth:
                 item_name = '%s.%s' % (name, k) if name else name
                 data[k] = self._attach_objects(v, depth - 1, instance=instance, name=item_name)

@@ -965,7 +965,7 @@ class ReferenceField(BaseField):
         if self._auto_dereference and isinstance(value, DBRef):
             value = dereference_dbref(value, self.document_type)
             if value is not None:
-                instance._data[self.name] = value
+                instance._set_data(self.name, value)
 
         return super(ReferenceField, self).__get__(instance, owner)
 
@@ -978,7 +978,7 @@ class ReferenceField(BaseField):
             return self
 
         # Get value from document instance if available
-        value = instance._data.get(self.name)
+        value = instance._data_get(self.name)
         self._auto_dereference = instance._fields[self.name]._auto_dereference
         # Dereference DBRefs
         if type(value) is DocumentProxy:
@@ -1140,7 +1140,7 @@ class CachedReferenceField(BaseField):
     def dereference(self, instance, owner, value):
         value = self.document_type._get_db().dereference(value)
         if value is not None:
-            instance._data[self.name] = self.document_type._from_son(value)
+            instance._set_data(self.name, self.document_type._from_son(value))
         return super(CachedReferenceField, self).__get__(instance, owner)
 
     def __get__(self, instance, owner):
@@ -1149,7 +1149,7 @@ class CachedReferenceField(BaseField):
             return self
 
         # Get value from document instance if available
-        value = instance._data.get(self.name)
+        value = instance._data_get(self.name)
         self._auto_dereference = instance._fields[self.name]._auto_dereference
         # Dereference DBRefs
         if type(value) is DocumentProxy:
@@ -1272,11 +1272,11 @@ class GenericReferenceField(BaseField):
         if instance is None:
             return self
 
-        value = instance._data.get(self.name)
+        value = instance._data_get(self.name)
 
         self._auto_dereference = instance._fields[self.name]._auto_dereference
         if self._auto_dereference and isinstance(value, (dict, SON)):
-            instance._data[self.name] = self.dereference(value)
+            instance._set_data(self.name, self.dereference(value))
 
         return super(GenericReferenceField, self).__get__(instance, owner)
 
@@ -1532,10 +1532,10 @@ class FileField(BaseField):
             return self
 
         # Check if a file already exists for this model
-        grid_file = instance._data.get(self.name)
+        grid_file = instance._data_get(self.name)
         if not isinstance(grid_file, self.proxy_class):
             grid_file = self.get_proxy_obj(key=self.name, instance=instance)
-            instance._data[self.name] = grid_file
+            instance._data_set(self.name, grid_file)
 
         if not grid_file.key:
             grid_file.key = self.name
@@ -1547,7 +1547,7 @@ class FileField(BaseField):
         if ((hasattr(value, 'read') and not
                 isinstance(value, GridFSProxy)) or isinstance(value, str_types)):
             # using "FileField() = file/string" notation
-            grid_file = instance._data.get(self.name)
+            grid_file = instance._data_get(self.name)
             # If a file already exists, delete it
             if grid_file:
                 try:
@@ -1556,11 +1556,11 @@ class FileField(BaseField):
                     pass
 
             # Create a new proxy object as we don't already have one
-            instance._data[key] = self.get_proxy_obj(
-                key=key, instance=instance)
-            instance._data[key].put(value)
+            proxy = self.get_proxy_obj(key=key, instance=instance)
+            proxy.put(value)
+            instance._data_set(key, proxy)
         else:
-            instance._data[key] = value
+            instance._data_set(key, proxy)
 
         instance._mark_as_changed(key)
 
@@ -1868,7 +1868,7 @@ class SequenceField(BaseField):
         value = super(SequenceField, self).__get__(instance, owner)
         if value is None and instance._initialised:
             value = self.generate()
-            instance._data[self.name] = value
+            instance._data_set(self.name, value)
             instance._mark_as_changed(self.name)
 
         return value

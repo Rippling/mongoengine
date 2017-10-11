@@ -112,7 +112,7 @@ class BaseField(object):
             # Document class being used rather than a document object
             return self
             
-        return instance.get_to_python_field(self.name)
+        return instance._data_get(self.name)
         
     def __set__(self, instance, value):
         """Descriptor for assigning a value to a field in a document.
@@ -131,7 +131,7 @@ class BaseField(object):
         if instance._initialised:
             try:
                 if (self.name not in instance._data or
-                        instance._data[self.name] != value):
+                        instance._data_get(self.name) != value):
                     instance._mark_as_changed(self.name)
             except Exception:
                 # Values cant be compared eg: naive and tz datetimes
@@ -147,7 +147,7 @@ class BaseField(object):
                     if type(v) is not DocumentProxy and isinstance(v, EmbeddedDocument):
                         v._instance = weakref.proxy(instance)
         
-        instance._data[self.name] = instance._python_data[self.name] = value
+        instance._data_set(self.name, value)
 
     def error(self, message="", errors=None, field_name=None):
         """Raises a ValidationError.
@@ -254,10 +254,10 @@ class ComplexBaseField(BaseField):
                 value = EmbeddedDocumentList(value, instance, self.name)
             elif not isinstance(value, BaseList):
                 value = BaseList(value, instance, self.name)
-            instance._data[self.name] = value
+            instance._data_set(self.name, value)
         elif isinstance(value, dict) and not isinstance(value, BaseDict):
             value = BaseDict(value, instance, self.name)
-            instance._data[self.name] = value
+            instance._data_set(self.name, value)
 
         return value
 

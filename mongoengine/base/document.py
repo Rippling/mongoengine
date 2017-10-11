@@ -102,14 +102,14 @@ class BaseDocument(object):
         # On fast-path, we mostly expect fields_names to be empty.
         # defaults mostly will have been saved in DB and will be there in _data.
         for field_name in field_names:
-            value = self._data.get(field_name, None)
+            value = self._data_get(field_name)
             if value is not None:
                 continue
             field = default_value_fields[field_name]
             default = field.default
             if callable(default):
                 default = default()
-            self._data[field_name] = self._python_data[field_name] = default
+            self._set_data(field_name, default)
             self._changed_fields.append(field_name)
             
     @classmethod
@@ -154,9 +154,9 @@ class BaseDocument(object):
 
         if (self._is_document and not self__created and
                 name in self._meta.get('shard_key', tuple()) and
-                self._data.get(name) != value):
+                self._data_get(name) != value):
             value_id = getattr(value, 'id', None)
-            if value_id != self._data.get(name):
+            if value_id != self._data_get(name):
                 OperationError = _import_class('OperationError')
                 msg = "Shard Keys are immutable. Tried to update %s" % name
                 raise OperationError(msg)
@@ -270,7 +270,7 @@ class BaseDocument(object):
 
         return self._data['_text_score']
 
-    def get_to_python_field(self, field_name):
+    def _data_get(self, field_name):
         _python_data = self._python_data
         res = _python_data.get(field_name, None)
         if res is not None: # Cache hit.
@@ -285,6 +285,9 @@ class BaseDocument(object):
         _python_data[field_name] = res
 
         return res
+        
+    def _data_set(self, field_name, value):
+        self._python_data[field_name] = self._data[field_name] = value
         
     def convert_to_python_data(self):
         self._python_data = {}
@@ -314,7 +317,7 @@ class BaseDocument(object):
             if root_fields and field_name not in root_fields:
                 continue
 
-            value = self.get_to_python_field(field_name)
+            value = self._data_get(field_name)
             field = self._fields.get(field_name)
 
             if field is None and self._dynamic:
@@ -337,7 +340,7 @@ class BaseDocument(object):
             # Handle self generating fields
             if value is None and field._auto_gen:
                 value = field.generate()
-                self._data[field_name] = self._python_data[field_name] = value
+                self._data_set(field_name, value)
 
             if value is not None:
                 if use_db_field:
@@ -349,7 +352,7 @@ class BaseDocument(object):
         Document = _import_class("Document")
         if isinstance(self, Document):
             if data["_id"] is None:
-                data["_id"] = self._data.get("id", None)
+                data["_id"] = self._data_get("id")
 
         if data['_id'] is None:
             data.pop('_id')
@@ -379,7 +382,7 @@ class BaseDocument(object):
             field = self._fields.get(name)
             if field is None:
                 field = self._dynamic_fields.get(name)
-            value = self.get_to_python_field(name)
+            value = self._data_get(name)
             fields.append((field, value))
                     
         EmbeddedDocumentField = _import_class("EmbeddedDocumentField")
@@ -576,7 +579,7 @@ class BaseDocument(object):
         for field_name in self._fields_ordered:
             db_field_name = self._db_field_map.get(field_name, field_name)
             key = '%s.' % db_field_name
-            data = self._data.get(field_name, None)
+            data = self._data_get(field_name)
             field = self._fields.get(field_name)
 
             if hasattr(data, 'id'):

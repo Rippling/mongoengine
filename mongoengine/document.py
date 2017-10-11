@@ -376,7 +376,7 @@ class Document(BaseDocument):
                                     GenericReferenceField)):
                 continue
 
-            ref = self._data.get(name)
+            ref = self._data_get(name)
             if not ref or isinstance(ref, DBRef):
                 continue
 
@@ -525,7 +525,7 @@ class Document(BaseDocument):
             try:
                 # If field is a special field, e.g. items is stored as _reserved_items,
                 # an KeyError is thrown. So try to retrieve the field from _data
-                setattr(self, field, self._reload(field, obj._data.get(field)))
+                setattr(self, field, self._reload(field, obj._data_get(field)))
             except KeyError:
                 # If field is removed from the database while the object
                 # is in memory, a reload would cause a KeyError
