@@ -661,7 +661,8 @@ class BaseQuerySet(object):
                 doc_map[doc['_id']] = self._get_as_pymongo(doc)
         else:
             for doc in docs:
-                doc_map[doc['_id']] = self._document._from_son(
+                key = doc['_id']
+                doc_map[key] = self._document._from_son(
                     doc,
                     only_fields=self.only_fields,
                     _auto_dereference=self._auto_dereference)
