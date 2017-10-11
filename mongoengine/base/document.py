@@ -109,7 +109,7 @@ class BaseDocument(object):
             default = field.default
             if callable(default):
                 default = default()
-            self._set_data(field_name, default)
+            self._data_set(field_name, default)
             self._changed_fields.append(field_name)
             
     @classmethod
