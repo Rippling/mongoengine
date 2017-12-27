@@ -1108,6 +1108,9 @@ class CachedReferenceField(BaseField):
             if update_kwargs:
                 filter_kwargs = {}
                 filter_kwargs[self.name] = document
+                company = 'company'
+                if hasattr(document, company) and company in self.owner_document._fields:
+                    filter_kwargs[company] = getattr(document, company)
 
                 self.owner_document.objects(
                     **filter_kwargs).update(**update_kwargs)
@@ -1117,9 +1120,12 @@ class CachedReferenceField(BaseField):
             return value
         if isinstance(value, dict):
             collection = self.document_type._get_collection_name()
-            value = DBRef(
-                collection, self.document_type.id.to_python(value['_id']))
-            # return self.document_type._from_son(self.document_type._get_db().dereference(value))
+            id = value.pop('_id')
+            dbref = DBRef(collection, self.document_type.id.to_python(id))
+            value = DocumentProxy(
+                functools.partial(dereference_dbref, value=dbref, document_type=self.document_type),
+                dbref.id, dbref.collection, **value)
+            return value
 
         if isinstance(value, DBRef):
             value = DocumentProxy(
