@@ -586,6 +586,7 @@ class BaseDocument(object):
         """Returns a list of all fields that have explicitly been changed.
         """
         EmbeddedDocument = _import_class("EmbeddedDocument")
+        EmbeddedDocumentListField = _import_class("EmbeddedDocumentListField")
         DynamicEmbeddedDocument = _import_class("DynamicEmbeddedDocument")
         ReferenceField = _import_class("ReferenceField")
         SortedListField = _import_class("SortedListField")
@@ -630,6 +631,16 @@ class BaseDocument(object):
                     if any(map(lambda d: field._ordering in d._changed_fields, data)):
                         changed_fields.append(db_field_name)
                         continue
+                elif isinstance(field, EmbeddedDocumentListField):
+                    for index, datum in enumerate(data):
+                        changed = datum._get_changed_fields(inspected)
+                        for k in changed:
+                            if k:
+                                field_name = "%s%s.%s" % (key, index, k)
+                                if field_name not in changed_fields:
+                                    changed_fields.append(field_name)
+                                if k in getattr(datum, '_original_values', {}):
+                                    original_values[field_name] = getattr(datum, '_original_values', {})[k]
 
                 self._nestable_types_changed_fields(
                     changed_fields, key, data, inspected)
