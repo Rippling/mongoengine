@@ -373,7 +373,6 @@ class EmbeddedDocumentList(BaseList):
 
 
 class StrictDict(object):
-    __slots__ = ()
     _special_fields = set(['get', 'pop', 'iteritems', 'items', 'keys', 'create'])
     _classes = {}
 
@@ -450,7 +449,6 @@ class StrictDict(object):
 
 
 class SemiStrictDict(StrictDict):
-    __slots__ = ('_extras', )
     _classes = {}
 
     def __getattr__(self, attr):
