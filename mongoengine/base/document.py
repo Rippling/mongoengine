@@ -183,33 +183,6 @@ class BaseDocument(object):
     def setattr_quick(self, name, value):
         super(BaseDocument, self).__setattr__(name, value)
 
-    def __getstate__(self):
-        data = {}
-        for k in ('_changed_fields', '_initialised', '_created',
-                  '_dynamic_fields', '_fields_ordered'):
-            if hasattr(self, k):
-                data[k] = getattr(self, k)
-        data['_data'] = self.to_mongo()
-        return data
-
-    def __setstate__(self, data):
-        if isinstance(data["_data"], SON):
-            data["_data"] = self.__class__._from_son(data["_data"])._data
-        for k in ('_changed_fields', '_initialised', '_created', '_data',
-                  '_dynamic_fields'):
-            if k in data:
-                setattr(self, k, data[k])
-        if '_fields_ordered' in data:
-            if self._dynamic:
-                setattr(self, '_fields_ordered', data['_fields_ordered'])
-            else:
-                _super_fields_ordered = type(self)._fields_ordered
-                setattr(self, '_fields_ordered', _super_fields_ordered)
-
-        dynamic_fields = data.get('_dynamic_fields') or SON()
-        for k in dynamic_fields.keys():
-            setattr(self, k, data["_data"].get(k))
-
     def __iter__(self):
         return iter(self._fields_ordered)
 
