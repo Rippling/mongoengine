@@ -342,7 +342,7 @@ class DecimalField(BaseField):
             return value
 
         if isinstance(value, Decimal128):
-            value = value.to_decimal()
+            return value
         elif not isinstance(value, decimal.Decimal):
             # Convert to string for python 2.6 before casting to Decimal
             try:
