@@ -349,14 +349,16 @@ class DecimalField(BaseField):
                 value = decimal.Decimal("%s" % value)
             except decimal.InvalidOperation:
                 return value
-        return value.quantize(decimal.Decimal(".%s" % ("0" * self.precision)), rounding=self.rounding)
+        return value
 
     def to_mongo(self, value, **kwargs):
         if value is None:
             return value
         if self.force_string:
             return unicode(value)
-        return Decimal128(self.to_python(value))
+        value = self.to_python(value)
+        value = value.quantize(decimal.Decimal(".%s" % ("0" * self.precision)), rounding=self.rounding)
+        return Decimal128(value)
 
     def validate(self, value):
         if not isinstance(value, decimal.Decimal):
