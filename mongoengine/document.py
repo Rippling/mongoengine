@@ -757,9 +757,10 @@ class Document(BaseDocument):
                                         **index_opts)
 
     @classmethod
-    def list_indexes(cls):
+    def list_indexes(cls, only_cls=False):
         """ Lists all of the indexes that should be created for given
         collection. It includes all the indexes from super- and sub-classes.
+        only_cls as True to not consider super and subclasses
         """
 
         if cls._meta.get('abstract'):
@@ -774,20 +775,21 @@ class Document(BaseDocument):
                     isinstance(cls, TopLevelDocumentMetaclass)):
                 classes.append(cls)
 
-            for base_cls in cls.__bases__:
-                if (isinstance(base_cls, TopLevelDocumentMetaclass) and
-                        base_cls != Document and
-                        not base_cls._meta.get('abstract') and
-                        connection_manager.get_collection(base_cls).full_name == connection_manager.get_collection(cls).full_name and
-                        base_cls not in classes):
-                    classes.append(base_cls)
-                    get_classes(base_cls)
-            for subclass in cls.__subclasses__():
-                if (isinstance(subclass, TopLevelDocumentMetaclass) and
-                        connection_manager.get_collection(subclass).full_name == connection_manager.get_collection(cls).full_name and
-                        subclass not in classes):
-                    classes.append(subclass)
-                    get_classes(subclass)
+            if not only_cls:
+                for base_cls in cls.__bases__:
+                    if (isinstance(base_cls, TopLevelDocumentMetaclass) and
+                            base_cls != Document and
+                            not base_cls._meta.get('abstract') and
+                            connection_manager.get_collection(base_cls).full_name == connection_manager.get_collection(cls).full_name and
+                            base_cls not in classes):
+                        classes.append(base_cls)
+                        get_classes(base_cls)
+                for subclass in cls.__subclasses__():
+                    if (isinstance(subclass, TopLevelDocumentMetaclass) and
+                            connection_manager.get_collection(subclass).full_name == connection_manager.get_collection(cls).full_name and
+                            subclass not in classes):
+                        classes.append(subclass)
+                        get_classes(subclass)
 
         get_classes(cls)
 
@@ -824,7 +826,7 @@ class Document(BaseDocument):
         in the database. Returns any missing/extra indexes.
         """
 
-        required = cls.list_indexes()
+        required = cls.list_indexes(only_cls=True)
         existing = [info['key']
                     for info in connection_manager.get_collection(cls).index_information().values()]
         missing = [index for index in required if index not in existing]
