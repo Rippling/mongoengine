@@ -2,7 +2,7 @@ from pymongo import MongoClient, ReadPreference, uri_parser
 from mongoengine.python_support import IS_PYMONGO_3
 
 __all__ = ['ConnectionError', 'connect', 'register_connection',
-           'DEFAULT_CONNECTION_NAME']
+           'DEFAULT_CONNECTION_NAME', 'aliases']
 
 
 DEFAULT_CONNECTION_NAME = 'default'
@@ -17,6 +17,7 @@ class ConnectionError(Exception):
     pass
 
 
+aliases = []
 _connection_settings = {}
 _connections = {}
 _dbs = {}
@@ -45,6 +46,7 @@ def register_connection(alias, name=None, host=None, port=None,
     .. versionchanged:: 0.10.6 - added mongomock support
     """
     global _connection_settings
+    global aliases
 
     conn_settings = {
         'name': name or 'test',
@@ -82,7 +84,7 @@ def register_connection(alias, name=None, host=None, port=None,
 
     conn_settings.update(kwargs)
     _connection_settings[alias] = conn_settings
-
+    aliases.append(alias)
 
 def disconnect(alias=DEFAULT_CONNECTION_NAME):
     global _connections
