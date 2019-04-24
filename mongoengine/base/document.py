@@ -738,17 +738,15 @@ class BaseDocument(object):
     def _get_db_alias(cls):
         from mongoengine.connection import aliases
         alias = DEFAULT_CONNECTION_NAME
-        app_name = cls.__module__.split(".")[1]
+        app_name = cls.__module__.split(".")[-2]
         if app_name in aliases:
             alias = app_name
-        if app_name.endswith('_provisioning'):
-            alias = 'apps'
         collection_name = cls._get_collection_name()
         if collection_name.startswith("historical_"):
             if 'history' in aliases:
                 alias = 'history'
         class_alias = cls._meta.get('db_alias', None)
-        if class_alias is not None:
+        if class_alias is not None and class_alias in alias:
             alias = class_alias
         return alias
 
