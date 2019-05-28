@@ -741,12 +741,8 @@ class BaseDocument(object):
         app_name = cls.__module__.split(".")[-2]
         if app_name in aliases:
             alias = app_name
-        collection_name = cls._get_collection_name()
-        if collection_name.startswith("historical_"):
-            if 'history' in aliases:
-                alias = 'history'
         class_alias = cls._meta.get('db_alias', None)
-        if class_alias is not None and class_alias in alias:
+        if class_alias is not None and class_alias in aliases:
             alias = class_alias
         return alias
 
