@@ -64,7 +64,7 @@ Available operators are as follows:
 * ``gt`` -- greater than
 * ``gte`` -- greater than or equal to
 * ``not`` -- negate a standard check, may be used before other operators (e.g.
-  ``Q(age__not__mod=5)``)
+  ``Q(age__not__mod=(5, 0))``)
 * ``in`` -- value is in list (a list of values should be provided)
 * ``nin`` -- value is not in list (a list of values should be provided)
 * ``mod`` -- ``value % x == y``, where ``x`` and ``y`` are two provided values
@@ -222,6 +222,18 @@ keyword argument::
 
 .. versionadded:: 0.4
 
+Sorting/Ordering results
+========================
+It is possible to order the results by 1 or more keys using :meth:`~mongoengine.queryset.QuerySet.order_by`.
+The order may be specified by prepending each of the keys by "+" or "-". Ascending order is assumed if there's no prefix.::
+
+    # Order by ascending date
+    blogs = BlogPost.objects().order_by('date')    # equivalent to .order_by('+date')
+
+    # Order by ascending date first, then descending title
+    blogs = BlogPost.objects().order_by('+date', '-title')
+
+
 Limiting and skipping results
 =============================
 Just as with traditional ORMs, you may limit the number of results returned or
@@ -237,7 +249,7 @@ is preferred for achieving this::
     # All except for the first 5 people
     users = User.objects[5:]
 
-    # 5 users, starting from the 10th user found
+    # 5 users, starting from the 11th user found
     users = User.objects[10:15]
 
 You may also index the query to retrieve a single result. If an item at that
@@ -340,14 +352,19 @@ Javascript code that is executed on the database server.
 
 Counting results
 ----------------
-Just as with limiting and skipping results, there is a method on
-:class:`~mongoengine.queryset.QuerySet` objects --
-:meth:`~mongoengine.queryset.QuerySet.count`, but there is also a more Pythonic
-way of achieving this::
+Just as with limiting and skipping results, there is a method on a
+:class:`~mongoengine.queryset.QuerySet` object --
+:meth:`~mongoengine.queryset.QuerySet.count`::
 
-    num_users = len(User.objects)
+    num_users = User.objects.count()
 
-Even if len() is the Pythonic way of counting results, keep in mind that if you concerned about performance, :meth:`~mongoengine.queryset.QuerySet.count` is the way to go since it only execute a server side count query, while len() retrieves the results, places them in cache, and finally counts them. If we compare the performance of the two operations, len() is much slower than :meth:`~mongoengine.queryset.QuerySet.count`.
+You could technically use ``len(User.objects)`` to get the same result, but it
+would be significantly slower than :meth:`~mongoengine.queryset.QuerySet.count`.
+When you execute a server-side count query, you let MongoDB do the heavy
+lifting and you receive a single integer over the wire. Meanwhile, ``len()``
+retrieves all the results, places them in a local cache, and finally counts
+them. If we compare the performance of the two operations, ``len()`` is much slower
+than :meth:`~mongoengine.queryset.QuerySet.count`.
 
 Further aggregation
 -------------------
@@ -380,6 +397,25 @@ would be generating "tag-clouds"::
     from operator import itemgetter
     top_tags = sorted(tag_freqs.items(), key=itemgetter(1), reverse=True)[:10]
 
+
+MongoDB aggregation API
+-----------------------
+If you need to run aggregation pipelines, MongoEngine provides an entry point `Pymongo's aggregation framework <https://api.mongodb.com/python/current/examples/aggregation.html#aggregation-framework>`_
+through :meth:`~mongoengine.queryset.QuerySet.aggregate`. Check out Pymongo's documentation for the syntax and pipeline.
+An example of its use would be::
+
+        class Person(Document):
+            name = StringField()
+
+        Person(name='John').save()
+        Person(name='Bob').save()
+
+        pipeline = [
+            {"$sort" : {"name" : -1}},
+            {"$project": {"_id": 0, "name": {"$toUpper": "$name"}}}
+            ]
+        data = Person.objects().aggregate(*pipeline)
+        assert data == [{'name': 'BOB'}, {'name': 'JOHN'}]
 
 Query efficiency and performance
 ================================
@@ -451,14 +487,14 @@ data. To turn off dereferencing of the results of a query use
 :func:`~mongoengine.queryset.QuerySet.no_dereference` on the queryset like so::
 
     post = Post.objects.no_dereference().first()
-    assert(isinstance(post.author, ObjectId))
+    assert(isinstance(post.author, DBRef))
 
 You can also turn off all dereferencing for a fixed period by using the
 :class:`~mongoengine.context_managers.no_dereference` context manager::
 
     with no_dereference(Post) as Post:
         post = Post.objects.first()
-        assert(isinstance(post.author, ObjectId))
+        assert(isinstance(post.author, DBRef))
 
     # Outside the context manager dereferencing occurs.
     assert(isinstance(post.author, User))
@@ -478,6 +514,8 @@ documents. To build a complex query, you may combine
 operators. To use a :class:`~mongoengine.queryset.Q` object, pass it in as the
 first positional argument to :attr:`Document.objects` when you filter it by
 calling it with keyword arguments::
+
+    from mongoengine.queryset.visitor import Q
 
     # Get published posts
     Post.objects(Q(published=True) | Q(publish_date__lte=datetime.now()))
@@ -557,6 +595,16 @@ cannot use the `$` syntax in keyword arguments it has been mapped to `S`::
     >>> post.reload()
     >>> post.tags
     ['database', 'mongodb']
+
+From MongoDB version 2.6, push operator supports $position value which allows
+to push values with index::
+
+    >>> post = BlogPost(title="Test", tags=["mongo"])
+    >>> post.save()
+    >>> post.update(push__tags__0=["database", "code"])
+    >>> post.reload()
+    >>> post.tags
+    ['database', 'code', 'mongo']
 
 .. note::
     Currently only top level lists are handled, future versions of mongodb /

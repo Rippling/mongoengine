@@ -13,6 +13,7 @@ Documents
 
 .. autoclass:: mongoengine.Document
    :members:
+   :inherited-members:
 
    .. attribute:: objects
 
@@ -21,15 +22,18 @@ Documents
 
 .. autoclass:: mongoengine.EmbeddedDocument
    :members:
+   :inherited-members:
 
 .. autoclass:: mongoengine.DynamicDocument
    :members:
+   :inherited-members:
 
 .. autoclass:: mongoengine.DynamicEmbeddedDocument
    :members:
+   :inherited-members:
 
 .. autoclass:: mongoengine.document.MapReduceDocument
-  :members:
+   :members:
 
 .. autoclass:: mongoengine.ValidationError
   :members:
@@ -87,7 +91,9 @@ Fields
 .. autoclass:: mongoengine.fields.DictField
 .. autoclass:: mongoengine.fields.MapField
 .. autoclass:: mongoengine.fields.ReferenceField
+.. autoclass:: mongoengine.fields.LazyReferenceField
 .. autoclass:: mongoengine.fields.GenericReferenceField
+.. autoclass:: mongoengine.fields.GenericLazyReferenceField
 .. autoclass:: mongoengine.fields.CachedReferenceField
 .. autoclass:: mongoengine.fields.BinaryField
 .. autoclass:: mongoengine.fields.FileField
