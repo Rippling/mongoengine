@@ -1,27 +1,44 @@
-import document
-from document import *
-import fields
-from fields import *
-import connection
-from connection import *
-import queryset
-from queryset import *
-import signals
-from signals import *
-from errors import *
+# Import submodules so that we can expose their __all__
+from mongoengine import connection
+from mongoengine import document
+from mongoengine import errors
+from mongoengine import fields
+from mongoengine import queryset
+from mongoengine import signals
 import connections_manager
-import errors
 
-__all__ = (list(document.__all__) + fields.__all__ + connection.__all__ +
-           list(queryset.__all__) + signals.__all__ + list(errors.__all__) +
-           list(connections_manager.__all__))
+# Import everything from each submodule so that it can be accessed via
+# mongoengine, e.g. instead of `from mongoengine.connection import connect`,
+# users can simply use `from mongoengine import connect`, or even
+# `from mongoengine import *` and then `connect('testdb')`.
+from mongoengine.connection import *
+from mongoengine.document import *
+from mongoengine.errors import *
+from mongoengine.fields import *
+from mongoengine.queryset import *
+from mongoengine.signals import *
 
-VERSION = (0, 10, 6)
+
+__all__ = (
+    list(document.__all__)
+    + list(fields.__all__)
+    + list(connection.__all__)
+    + list(queryset.__all__)
+    + list(signals.__all__)
+    + list(errors.__all__)
+    + list(connections_manager.__all__)
+)
+
+
+VERSION = (0, 19, 0)
 
 
 def get_version():
-    if isinstance(VERSION[-1], basestring):
-        return '.'.join(map(str, VERSION[:-1])) + VERSION[-1]
-    return '.'.join(map(str, VERSION))
+    """Return the VERSION as a string.
+
+    For example, if `VERSION == (0, 10, 7)`, return '0.10.7'.
+    """
+    return ".".join(map(str, VERSION))
+
 
 __version__ = get_version()
