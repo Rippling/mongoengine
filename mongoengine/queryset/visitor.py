@@ -1,9 +1,10 @@
 import copy
+import warnings
 
 from mongoengine.errors import InvalidQueryError
 from mongoengine.queryset import transform
 
-__all__ = ('Q',)
+__all__ = ("Q", "QNode")
 
 
 class QNodeVisitor(object):
@@ -56,16 +57,16 @@ class SimplificationVisitor(QNodeVisitor):
                 raise DuplicateQueryConditionsError()
 
             query_ops.update(ops)
-            
+
             # Convert DocumentProxy to ids.
             for op in ops:
                 from mongoengine import Document
                 from mongoengine.base.proxy import DocumentProxy
                 if type(query[op]) is DocumentProxy or isinstance(query[op], Document):
                     query[op] = query[op].id
-            
+
             combined_query.update(copy.deepcopy(query))
-            
+
         return combined_query
 
 
@@ -88,8 +89,7 @@ class QueryCompilerVisitor(QNodeVisitor):
 
 
 class QNode(object):
-    """Base class for nodes in query trees.
-    """
+    """Base class for nodes in query trees."""
 
     AND = 0
     OR = 1
@@ -103,11 +103,14 @@ class QNode(object):
         raise NotImplementedError
 
     def _combine(self, other, operation):
-        """Combine this node with another node into a QCombination object.
+        """Combine this node with another node into a QCombination
+        object.
         """
-        if getattr(other, 'empty', True):
+        # If the other Q() is empty, ignore it and just use `self`.
+        if getattr(other, "empty", True):
             return self
 
+        # Or if this Q is empty, ignore it and just use `other`.
         if self.empty:
             return other
 
@@ -115,6 +118,8 @@ class QNode(object):
 
     @property
     def empty(self):
+        msg = "'empty' property is deprecated in favour of using 'not bool(filter)'"
+        warnings.warn(msg, DeprecationWarning)
         return False
 
     def __or__(self, other):
@@ -125,8 +130,8 @@ class QNode(object):
 
 
 class QCombination(QNode):
-    """Represents the combination of several conditions by a given logical
-    operator.
+    """Represents the combination of several conditions by a given
+    logical operator.
     """
 
     def __init__(self, operation, children):
@@ -149,11 +154,13 @@ class QCombination(QNode):
 
     @property
     def empty(self):
+        msg = "'empty' property is deprecated in favour of using 'not bool(filter)'"
+        warnings.warn(msg, DeprecationWarning)
         return not bool(self.children)
 
     def __repr__(self):
-        op = ' & ' if self.operation is self.AND else ' | '
-        return '(%s)' % op.join([repr(node) for node in self.children])
+        op = " & " if self.operation is self.AND else " | "
+        return "(%s)" % op.join([repr(node) for node in self.children])
 
     def __hash__(self):
         return hash(repr(self))
@@ -161,6 +168,10 @@ class QCombination(QNode):
     def __eq__(self, other):
         return hash(other) == hash(self)
 
+    def __bool__(self):
+        return bool(self.children)
+
+    __nonzero__ = __bool__  # For Py2 support
 
 class Q(QNode):
     """A simple query object, used in a query tree to build up more complex
@@ -196,4 +207,7 @@ class Q(QNode):
     def __eq__(self, other):
         return hash(other) == hash(self)
 
+    def __bool__(self):
+        return bool(self.query)
 
+    __nonzero__ = __bool__  # For Py2 support

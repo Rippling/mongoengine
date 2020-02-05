@@ -1,7 +1,7 @@
 from functools import partial
 from mongoengine.queryset.queryset import QuerySet
 
-__all__ = ('queryset_manager', 'QuerySetManager')
+__all__ = ("queryset_manager", "QuerySetManager")
 
 
 class QuerySetManager(object):
@@ -29,14 +29,14 @@ class QuerySetManager(object):
         Document.objects is accessed.
         """
         if instance is not None:
-            # Document class being used rather than a document object
+            # Document object being used rather than a document class
             return self
 
         # owner is the document that contains the QuerySetManager
-        queryset_class = owner._meta.get('queryset_class', self.default)
+        queryset_class = owner._meta.get("queryset_class", self.default)
         queryset = queryset_class(owner, owner._get_collection())
         if self.get_queryset:
-            arg_count = self.get_queryset.func_code.co_argcount
+            arg_count = self.get_queryset.__code__.co_argcount
             if arg_count == 1:
                 queryset = self.get_queryset(queryset)
             elif arg_count == 2:
