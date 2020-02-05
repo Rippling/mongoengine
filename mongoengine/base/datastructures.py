@@ -166,14 +166,14 @@ class BaseList(list):
         return self
 
     def __setitem__(self, key, value):
-        changed_key = key if len(self) <= key or self[key] != value else None
         if isinstance(key, slice):
             # In case of slice, we don't bother to identify the exact elements being updated
             # instead, we simply marks the whole list as changed
-            changed_key = None
+            self._mark_as_changed()
+        elif len(self) <= key or self[key] != value:
+            self._mark_as_changed(key)
 
         result = super(BaseList, self).__setitem__(key, value)
-        self._mark_as_changed(changed_key)
         return result
 
     append = mark_as_changed_wrapper(list.append)
