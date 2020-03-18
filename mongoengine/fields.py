@@ -1487,7 +1487,7 @@ class BinaryField(BaseField):
         return super(BinaryField, self).__set__(instance, value)
 
     def to_mongo(self, value, **kwargs):
-        return Binary(str(value))
+        return Binary(value)
 
     def validate(self, value):
         if not isinstance(value, (bin_type, txt_type, Binary)):
