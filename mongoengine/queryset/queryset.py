@@ -12,6 +12,8 @@ __all__ = ('QuerySet', 'QuerySetNoCache', 'DO_NOTHING', 'NULLIFY', 'CASCADE',
 # The maximum number of items to display in a QuerySet.__repr__
 REPR_OUTPUT_SIZE = 20
 ITER_CHUNK_SIZE = 100
+MAX_PARALLEL_CHUNKS = 10
+MIN_CHUNK_SIZE = 100
 
 
 class QuerySet(BaseQuerySet, LazyPrefetchBase):
@@ -27,6 +29,9 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
     _result_cache = None
     _reference_cache_count = None
     _reference_cache = None
+    _parallel_processing_enabled = False
+    _parallel_max_chunks = MAX_PARALLEL_CHUNKS
+    _parallel_chunk_size = MIN_CHUNK_SIZE
 
     def next(self):
         """Wrap the result in a :class:`~mongoengine.Document` object.
@@ -38,6 +43,15 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
         raw_doc = next(self._cursor)
         if self._as_pymongo:
             return self._get_as_pymongo(raw_doc)
+
+        return self._get_document(self, raw_doc)
+
+    def _get_document(self, raw_doc):
+        """
+        Should be thread safe
+        :param raw_doc:
+        :return:
+        """
         doc = self._document._from_son(
             raw_doc,
             _auto_dereference=self._auto_dereference,
@@ -126,10 +140,40 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
             self._reference_cache = defaultdict(dict)
 
         if self._has_more:
-            try:
-                for i in range(ITER_CHUNK_SIZE):
-                    self._result_cache.append(next(self))
-            except StopIteration:
+            if self._parallel_processing_enabled is False:
+                try:
+                    for i in range(ITER_CHUNK_SIZE):
+                        self._result_cache.append(next(self))
+                except StopIteration:
+                    self._has_more = False
+            else:
+                def process_chunk(raw_docs, result_docs):
+                    for raw_doc in raw_docs:
+                        role = self._document._from_son(raw_doc, _auto_dereference=False)
+                        result_docs.append(role)
+
+                from threading import Thread
+                raw_docs = [d for d in q._cursor]  # TODO: What if cursor is consumed partially so far???
+                n_chunks = (len(raw_docs) + self._parallel_chunk_size - 1) / self._parallel_chunk_size
+                if n_chunks > self._parallel_max_chunks:
+                    chunk_size = (len(raw_docs) + self._parallel_max_chunks - 1) / self._parallel_max_chunks
+
+                threads = []
+                results = []
+                for i in range(0, len(raw_docs), chunk_size):
+                    sub_raw_docs = raw_docs[i:i + chunk_size]
+                    result = []
+                    t = Thread(target=process_chunk, args=(sub_raw_docs, result,))
+                    t.start()
+                    threads.append(t)
+                    results.append(result)
+
+                for t in threads:
+                    t.join()
+
+                for result_docs in results:
+                    self._reference_cache.extend(result_docs)
+
                 self._has_more = False
 
     def count(self, with_limit_and_skip=False):
@@ -146,6 +190,13 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
             self._len = super(QuerySet, self).count(with_limit_and_skip)
 
         return self._len
+
+    def enable_parallel_processing(self, chunk_size=200, max_chunks=10):
+        new_qs = self.clone()
+        new_qs._parallel_processing_enabled = True
+        new_qs._parallel_max_chunks = min(max_chunks, MAX_PARALLEL_CHUNKS)
+        new_qs._parallel_chunk_size = max(chunk_size, MIN_CHUNK_SIZE)
+        return new_qs
 
     def no_cache(self):
         """Convert to a non_caching queryset

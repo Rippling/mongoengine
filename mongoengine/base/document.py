@@ -834,6 +834,7 @@ class BaseDocument(object):
     def _from_son(cls, son, _auto_dereference=True, only_fields=None, created=False, _lazy_prefetch_base=None,
                   _fields=None, loading_from_db=True):
         """Create an instance of a Document (subclass) from a PyMongo SON.
+        This function should be threadsafe as we call this parallelly from QuerySet
         """
         if not only_fields:
             only_fields = []
