@@ -69,6 +69,9 @@ class BaseQuerySet(object):
         self._as_pymongo = False
         self._as_pymongo_coerce = False
         self._search_text = None
+        self._parallel_processing_enabled = False
+        self._parallel_max_chunks = 20
+        self._parallel_min_chunk_size = 100
 
         # If inheritance is allowed, only return instances and instances of
         # subclasses of the class being used
@@ -719,7 +722,8 @@ class BaseQuerySet(object):
                       '_timeout', '_class_check', '_slave_okay', '_read_preference',
                       '_iter', '_scalar', '_as_pymongo', '_as_pymongo_coerce',
                       '_limit', '_skip', '_hint', '_auto_dereference',
-                      '_search_text', 'only_fields', '_max_time_ms')
+                      '_search_text', 'only_fields', '_max_time_ms',
+                      '_parallel_processing_enabled', '_parallel_max_chunks', '_parallel_min_chunk_size')
 
         for prop in copy_props:
             val = getattr(self, prop)

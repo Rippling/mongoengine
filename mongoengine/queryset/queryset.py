@@ -27,9 +27,7 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
     _result_cache = None
     _reference_cache_count = None
     _reference_cache = None
-    _parallel_processing_enabled = False
-    _parallel_max_chunks = 20
-    _parallel_min_chunk_size = 100
+
 
     def next(self):
         """Wrap the result in a :class:`~mongoengine.Document` object.
@@ -196,11 +194,11 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
 
         return self._len
 
-    def enable_parallel_processing(self, chunk_size=100, max_chunks=20):
+    def enable_parallel_processing(self, chunk_size=100, max_chunks=20, force=False):
         new_qs = self.clone()
         new_qs._parallel_processing_enabled = True
-        new_qs._parallel_max_chunks = min(max_chunks, self._parallel_max_chunks)
-        new_qs._parallel_min_chunk_size = max(chunk_size, self._parallel_min_chunk_size)
+        new_qs._parallel_max_chunks = max_chunks if force else min(max_chunks, self._parallel_max_chunks)
+        new_qs._parallel_min_chunk_size = chunk_size if force else max(chunk_size, self._parallel_min_chunk_size)
         return new_qs
 
     def no_cache(self):
