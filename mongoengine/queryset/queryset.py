@@ -44,7 +44,7 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
         if self._as_pymongo:
             return self._get_as_pymongo(raw_doc)
 
-        return self._get_document(self, raw_doc)
+        return self._get_document(raw_doc)
 
     def _get_document(self, raw_doc):
         """
@@ -140,7 +140,7 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
             self._reference_cache = defaultdict(dict)
 
         if self._has_more:
-            if self._parallel_processing_enabled is False:
+            if (self._parallel_processing_enabled is False) or self._limit == 0 or self._none or self._as_pymongo:
                 try:
                     for i in range(ITER_CHUNK_SIZE):
                         self._result_cache.append(next(self))
@@ -149,12 +149,14 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
             else:
                 def process_chunk(raw_docs, result_docs):
                     for raw_doc in raw_docs:
-                        role = self._document._from_son(raw_doc, _auto_dereference=False)
+                        role = self._get_document(raw_doc)
                         result_docs.append(role)
 
                 from threading import Thread
-                raw_docs = [d for d in q._cursor]  # TODO: What if cursor is consumed partially so far???
+                self.rewind()
+                raw_docs = [d for d in self._cursor]
                 n_chunks = (len(raw_docs) + self._parallel_chunk_size - 1) / self._parallel_chunk_size
+                chunk_size = self._parallel_chunk_size
                 if n_chunks > self._parallel_max_chunks:
                     chunk_size = (len(raw_docs) + self._parallel_max_chunks - 1) / self._parallel_max_chunks
 
@@ -172,7 +174,7 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
                     t.join()
 
                 for result_docs in results:
-                    self._reference_cache.extend(result_docs)
+                    self._result_cache.extend(result_docs)
 
                 self._has_more = False
 
