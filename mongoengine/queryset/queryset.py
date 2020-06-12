@@ -40,7 +40,12 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
         if self._as_pymongo:
             return self._get_as_pymongo(raw_doc)
 
-        return self._get_document(raw_doc)
+        doc = self._get_document(raw_doc)
+
+        if self._scalar:
+            return self._get_scalar(doc)
+
+        return doc
 
     def _get_document(self, raw_doc):
         """
@@ -55,9 +60,6 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
             _lazy_prefetch_base=self,
             _fields=[],
         )
-
-        if self._scalar:
-            return self._get_scalar(doc)
 
         return doc
 
@@ -136,7 +138,8 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
             self._reference_cache = defaultdict(dict)
 
         if self._has_more:
-            if (self._parallel_processing_enabled is False) or self._limit == 0 or self._none or self._as_pymongo:
+            if (self._parallel_processing_enabled is False) or self._limit == 0 \
+                    or self._none or self._as_pymongo or self._scalar:
                 try:
                     for i in range(ITER_CHUNK_SIZE):
                         self._result_cache.append(next(self))
