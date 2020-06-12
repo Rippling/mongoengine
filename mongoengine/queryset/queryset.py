@@ -147,35 +147,40 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
                 except StopIteration:
                     self._has_more = False
             else:
-                def process_chunk(raw_docs, result_docs):
-                    for raw_doc in raw_docs:
-                        role = self._get_document(raw_doc)
-                        result_docs.append(role)
-
                 from threading import Thread
-                self.rewind()
-                raw_docs = [d for d in self._cursor]
-                n_chunks = (len(raw_docs) + self._parallel_chunk_size - 1) / self._parallel_chunk_size
-                chunk_size = self._parallel_chunk_size
-                if n_chunks > self._parallel_max_chunks:
-                    chunk_size = (len(raw_docs) + self._parallel_max_chunks - 1) / self._parallel_max_chunks
+                def process_chunk(raw_docs, chunk_result):
+                    for raw_doc in raw_docs:
+                        doc = self._get_document(raw_doc)
+                        chunk_result.append(doc)
 
-                threads = []
-                results = []
-                for i in range(0, len(raw_docs), chunk_size):
-                    sub_raw_docs = raw_docs[i:i + chunk_size]
-                    result = []
-                    t = Thread(target=process_chunk, args=(sub_raw_docs, result,))
-                    t.start()
-                    threads.append(t)
-                    results.append(result)
+                def process_parallely(raw_docs, chunk_size):
+                    threads, chunk_results = [], []
+                    for i in range(0, len(raw_docs), chunk_size):
+                        sub_raw_docs = raw_docs[i:i + chunk_size]
+                        chunk_result = []
+                        t = Thread(target=process_chunk, args=(sub_raw_docs, chunk_result,))
+                        t.start()
+                        threads.append(t)
+                        chunk_results.append(chunk_result)
 
-                for t in threads:
-                    t.join()
+                    for t in threads:
+                        t.join()
 
-                for result_docs in results:
-                    self._result_cache.extend(result_docs)
+                    return chunk_results
 
+                def get_chunk_size(raw_docs):
+                    n_chunks = (len(raw_docs) + self._parallel_chunk_size - 1) / self._parallel_chunk_size
+                    if n_chunks > self._parallel_max_chunks:
+                        return (len(raw_docs) + self._parallel_max_chunks - 1) / self._parallel_max_chunks
+                    else:
+                        return self._parallel_chunk_size
+
+                raw_docs = list(self._cursor)
+                chunk_size = get_chunk_size(raw_docs)
+                chunk_results = process_parallely(raw_docs, chunk_size)
+
+                for chunk_result_docs in chunk_results:
+                    self._result_cache.extend(chunk_result_docs)
                 self._has_more = False
 
     def count(self, with_limit_and_skip=False):
