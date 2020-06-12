@@ -12,8 +12,6 @@ __all__ = ('QuerySet', 'QuerySetNoCache', 'DO_NOTHING', 'NULLIFY', 'CASCADE',
 # The maximum number of items to display in a QuerySet.__repr__
 REPR_OUTPUT_SIZE = 20
 ITER_CHUNK_SIZE = 100
-MAX_PARALLEL_CHUNKS = 10
-MIN_CHUNK_SIZE = 100
 
 
 class QuerySet(BaseQuerySet, LazyPrefetchBase):
@@ -30,8 +28,8 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
     _reference_cache_count = None
     _reference_cache = None
     _parallel_processing_enabled = False
-    _parallel_max_chunks = MAX_PARALLEL_CHUNKS
-    _parallel_chunk_size = MIN_CHUNK_SIZE
+    _parallel_max_chunks = 20
+    _parallel_min_chunk_size = 100
 
     def next(self):
         """Wrap the result in a :class:`~mongoengine.Document` object.
@@ -169,11 +167,11 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
                     return chunk_results
 
                 def get_chunk_size(raw_docs):
-                    n_chunks = (len(raw_docs) + self._parallel_chunk_size - 1) / self._parallel_chunk_size
+                    n_chunks = (len(raw_docs) + self._parallel_min_chunk_size - 1) / self._parallel_min_chunk_size
                     if n_chunks > self._parallel_max_chunks:
                         return (len(raw_docs) + self._parallel_max_chunks - 1) / self._parallel_max_chunks
                     else:
-                        return self._parallel_chunk_size
+                        return self._parallel_min_chunk_size
 
                 raw_docs = list(self._cursor)
                 chunk_size = get_chunk_size(raw_docs)
@@ -198,11 +196,11 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
 
         return self._len
 
-    def enable_parallel_processing(self, chunk_size=200, max_chunks=10):
+    def enable_parallel_processing(self, chunk_size=100, max_chunks=20):
         new_qs = self.clone()
         new_qs._parallel_processing_enabled = True
-        new_qs._parallel_max_chunks = min(max_chunks, MAX_PARALLEL_CHUNKS)
-        new_qs._parallel_chunk_size = max(chunk_size, MIN_CHUNK_SIZE)
+        new_qs._parallel_max_chunks = min(max_chunks, self._parallel_max_chunks)
+        new_qs._parallel_min_chunk_size = max(chunk_size, self._parallel_min_chunk_size)
         return new_qs
 
     def no_cache(self):
