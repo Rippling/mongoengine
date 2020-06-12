@@ -147,7 +147,7 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
                 except StopIteration:
                     self._has_more = False
             else:
-                from threading import Thread
+                from multiprocessing import Process
                 def process_chunk(raw_docs, chunk_result):
                     for raw_doc in raw_docs:
                         doc = self._get_document(raw_doc)
@@ -158,7 +158,7 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
                     for i in range(0, len(raw_docs), chunk_size):
                         sub_raw_docs = raw_docs[i:i + chunk_size]
                         chunk_result = []
-                        t = Thread(target=process_chunk, args=(sub_raw_docs, chunk_result,))
+                        t = Process(target=process_chunk, args=(sub_raw_docs, chunk_result,))
                         t.start()
                         threads.append(t)
                         chunk_results.append(chunk_result)
