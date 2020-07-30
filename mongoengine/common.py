@@ -18,6 +18,20 @@ class ReadOnlyContext(object):
         return cls.read_only
 
 
+class DryRunPeoProcessContext(object):
+    is_dry_run = False
+
+    def __enter__(self):
+        DryRunPeoProcessContext.is_dry_run = True
+
+    def __exit__(self, *args):
+        DryRunPeoProcessContext.is_dry_run = False
+
+    @classmethod
+    def isDryRun(cls):
+        return cls.is_dry_run
+
+
 def _import_class(cls_name):
     """Cache mechanism for imports.
 
