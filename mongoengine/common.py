@@ -18,7 +18,7 @@ class ReadOnlyContext(object):
         return cls.read_only
 
 
-class DryRunPeoProcessContext(object):
+class DryRunPeoProcessContext(ReadOnlyContext):
     is_dry_run = False
 
     def __enter__(self):
