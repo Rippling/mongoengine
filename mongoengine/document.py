@@ -2,7 +2,7 @@ from __future__ import absolute_import
 import warnings
 import pymongo
 import re
-
+from bson import ObjectId
 from pymongo.read_preferences import ReadPreference
 from bson.dbref import DBRef
 from mongoengine import signals
@@ -373,7 +373,11 @@ class Document(with_metaclass(TopLevelDocumentMetaclass, BaseDocument)):
             id_field = self._meta['id_field']
             if created or id_field not in self._meta.get('shard_key', []):
                 self[id_field] = self._fields[id_field].to_python(object_id)
-
+        else:
+            # new objects cannot be created in dry run and hence self.id will be none,
+            # hence to pass the validation process we are assigning temp object id to the self.id
+            if not self.id:
+                self.id = ObjectId()
         changed_fields = list(set([f.split('.')[0] for f in getattr(self, '_changed_fields', [])]))
         changed_fields = [self._reverse_db_field_map.get(changed_field, changed_field) for changed_field in changed_fields]
         # Use reverse_db_field_map in original_values as well
