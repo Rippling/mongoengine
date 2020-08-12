@@ -154,6 +154,23 @@ class BaseQuerySet(object):
         # forse load cursor
         # self._cursor
 
+
+    def _getitemindryrun(self, key):
+        queryset = self.clone()
+        queryset = queryset.filter(id__nin=DryRunPeoProcessContext.changed_object_ids)
+        count = queryset._cursor.count()
+        if key < count:
+            return queryset._document._from_son(queryset._cursor[key],
+                                                _auto_dereference=self._auto_dereference,
+                                                only_fields=self.only_fields)
+        key = key - count
+        with switch_db(self._document, 'dry_run'):
+            queryset2 = self.clone()
+            return queryset2._document._from_son(queryset2._cursor[key],
+                                                _auto_dereference=self._auto_dereference,
+                                                only_fields=self.only_fields)
+
+
     def __getitem__(self, key):
         """Support skip and limit using getitem and slicing syntax.
         """
@@ -189,6 +206,9 @@ class BaseQuerySet(object):
 
             if queryset._as_pymongo:
                 return queryset._get_as_pymongo(queryset._cursor[key])
+
+            if DryRunPeoProcessContext.is_dry_run:
+                return self._getitemindryrun(key)
             return queryset._document._from_son(queryset._cursor[key],
                                                 _auto_dereference=self._auto_dereference,
                                                 only_fields=self.only_fields)
@@ -252,6 +272,57 @@ class BaseQuerySet(object):
 
         return queryset
 
+
+    def _get_for_dry_run(self, *q_objs, **query):
+        queryset = self.clone()
+        queryset = queryset.filter(id__nin=DryRunPeoProcessContext.changed_object_ids)
+        queryset = queryset.order_by().limit(2)
+        queryset = queryset.filter(*q_objs, **query)
+
+        less = False
+        exact = False
+        more = False
+        flag = False
+        try:
+            result = next(queryset)
+        except StopIteration:
+            less = True
+            # msg = ("%s matching query does not exist."
+            #        % queryset._document._class_name)
+            # raise queryset._document.DoesNotExist(msg)
+        if not less:
+            try:
+                next(queryset)
+            except StopIteration:
+                exact = True
+            else:
+                more = True
+
+        with switch_db(self._document, 'dry_run'):
+            queryset2 = self.clone()
+            queryset2 = queryset2.order_by().limit(2)
+            queryset2 = queryset2.filter(*q_objs, **query)
+            if not more:
+                try:
+                    result2 = next(queryset2)
+                except StopIteration:
+                    if less:
+                        msg = ("%s matching query does not exist."
+                               % queryset2._document._class_name)
+                        raise queryset2._document.DoesNotExist(msg)
+                    if exact:
+                        return result
+                    flag = True
+                if not flag:
+                    try:
+                        next(queryset2)
+                    except StopIteration:
+                        if less:
+                            return result2
+        queryset.rewind()
+        message = u'%d items returned, instead of 1' % self.count()
+        raise queryset._document.MultipleObjectsReturned(message)
+
     def get(self, *q_objs, **query):
         """Retrieve the the matching object raising
         :class:`~mongoengine.queryset.MultipleObjectsReturned` or
@@ -261,10 +332,12 @@ class BaseQuerySet(object):
 
         .. versionadded:: 0.3
         """
+        if DryRunPeoProcessContext.is_dry_run:
+            return self._get_for_dry_run(*q_objs, **query)
+
         queryset = self.clone()
         queryset = queryset.order_by().limit(2)
         queryset = queryset.filter(*q_objs, **query)
-
         try:
             result = next(queryset)
         except StopIteration:
@@ -275,7 +348,6 @@ class BaseQuerySet(object):
             next(queryset)
         except StopIteration:
             return result
-
         queryset.rewind()
         message = u'%d items returned, instead of 1' % queryset.count()
         raise queryset._document.MultipleObjectsReturned(message)
@@ -290,24 +362,12 @@ class BaseQuerySet(object):
     def first(self):
         """Retrieve the first object matching the query.
         """
+        # no changes for dry run as the __getitem__ will be used because of queryset[0]
         queryset = self.clone()
         try:
             result = queryset[0]
         except IndexError:
             result = None
-
-        if DryRunPeoProcessContext.is_dry_run:
-            with switch_db(self._document, 'dry_run'):
-                queryset = self.clone()
-                try:
-                    result2 = queryset[0]
-                except IndexError:
-                    result2 = None
-                if result2:
-                    result = result2
-                elif result and str(result.id) in DryRunPeoProcessContext.changed_object_ids:
-                    result = None
-
         return result
 
     def insert(self, doc_or_docs, load_bulk=True,
@@ -386,6 +446,17 @@ class BaseQuerySet(object):
             self._document, documents=results, loaded=True, **signal_kwargs)
         return return_one and results[0] or results
 
+    def _count_for_dry_run(self, with_limit_and_skip=False):
+        queryset = self.clone()
+        queryset = queryset.filter(id__nin=DryRunPeoProcessContext.changed_object_ids)
+        count = queryset._cursor.count(with_limit_and_skip=with_limit_and_skip)
+
+        with switch_db(self._document, 'dry_run'):
+            queryset2 = self.clone()
+            count += queryset2._cursor.count(with_limit_and_skip=with_limit_and_skip)
+
+        return count
+
     def count(self, with_limit_and_skip=False):
         """Count the selected elements in the query.
 
@@ -395,6 +466,10 @@ class BaseQuerySet(object):
         """
         if self._limit == 0 and with_limit_and_skip or self._none:
             return 0
+
+        if DryRunPeoProcessContext.is_dry_run:
+            return self._count_for_dry_run(with_limit_and_skip)
+
         return self._cursor.count(with_limit_and_skip=with_limit_and_skip)
 
     def delete(self, write_concern=None, _from_doc_delete=False, cascade_refs=None):
