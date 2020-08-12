@@ -6,6 +6,32 @@ from collections import defaultdict
 
 from mongoengine import connection
 
+import socket
+import sys
+
+_module = sys.modules[__name__]
+
+
+def disable_socket():
+    setattr(_module, '_socket_disabled', True)
+
+    def guarded(*args, **kwargs):
+        if getattr(_module, '_socket_disabled', False):
+            raise RuntimeError("Dry run doesn't support external connections")
+        else:
+            # SocketType is a valid public alias of socket.socket,
+            # we use it here to avoid namespace collisions
+            return socket.SocketType(*args, **kwargs)
+
+    socket.socket = guarded
+
+
+def enable_socket():
+    """ re-enable socket.socket to enable the Internet. useful in testing.
+    """
+    setattr(_module, '_socket_disabled', False)
+
+
 class ReadOnlyContext(object):
     read_only = False
 
@@ -26,14 +52,15 @@ class DryRunPeoProcessContext(ReadOnlyContext):
 
     def __enter__(self):
         ReadOnlyContext.read_only = True
-        DryRunPeoProcessContext.is_dry_run = True
         DryRunPeoProcessContext.dry_run_id = str(ObjectId())
+        disable_socket()
 
     def __exit__(self, *args):
         ReadOnlyContext.read_only = False
         DryRunPeoProcessContext.is_dry_run = False
         DryRunPeoProcessContext.dry_run_id = None
         DryRunPeoProcessContext.changed_object_ids = []
+        enable_socket()
 
     @classmethod
     def isDryRun(cls):
