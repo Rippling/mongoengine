@@ -5,6 +5,8 @@ from mongoengine.queryset.base import (BaseQuerySet, DO_NOTHING, NULLIFY,
 from mongoengine.base.proxy import LazyPrefetchBase
 from collections import defaultdict
 from six.moves import range
+from mongoengine.common import DryRunPeoProcessContext
+from mongoengine.context_managers import switch_db
 
 __all__ = ('QuerySet', 'QuerySetNoCache', 'DO_NOTHING', 'NULLIFY', 'CASCADE',
            'DENY', 'PULL')
@@ -126,11 +128,26 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
             self._reference_cache = defaultdict(dict)
 
         if self._has_more:
-            try:
-                for i in range(ITER_CHUNK_SIZE):
-                    self._result_cache.append(next(self))
-            except StopIteration:
-                self._has_more = False
+            if DryRunPeoProcessContext.is_dry_run and self._document._meta.get("db_alias", "") != 'dry_run':
+                queryset1 = self.clone()
+                queryset1 = queryset1.filter(id__nin=DryRunPeoProcessContext.changed_object_ids)
+                try:
+                    for i in range(ITER_CHUNK_SIZE):
+                        self._result_cache.append(next(queryset1))
+                except StopIteration:
+                    with switch_db(self._document, 'dry_run'):
+                        queryset2 = self.clone()
+                        try:
+                            for i in range(ITER_CHUNK_SIZE):
+                                self._result_cache.append(next(queryset2))
+                        except StopIteration:
+                            self._has_more = False
+            else:
+                try:
+                    for i in range(ITER_CHUNK_SIZE):
+                        self._result_cache.append(next(self))
+                except StopIteration:
+                    self._has_more = False
 
     def count(self, with_limit_and_skip=False):
         """Count the selected elements in the query.
