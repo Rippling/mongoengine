@@ -1127,7 +1127,7 @@ class ReferenceField(BaseField):
         """Convert a MongoDB-compatible type to a Python type.
         """
         from mongoengine.common import DryRunPeoProcessContext
-        if DryRunPeoProcessContext.is_dry_run and DryRunPeoProcessContext.is_dry_run_db:
+        if DryRunPeoProcessContext.is_dry_run:
             return value
 
 

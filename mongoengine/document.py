@@ -376,6 +376,7 @@ class Document(with_metaclass(TopLevelDocumentMetaclass, BaseDocument)):
         else:
             # new objects cannot be created in dry run and hence self.id will be none,
             # hence to pass the validation process we are assigning temp object id to the self.id
+            actually_created = created
             if not self.dryRunId:
                 self.dryRunId = DryRunPeoProcessContext.dry_run_id
                 doc = self.to_mongo()
@@ -473,6 +474,7 @@ class Document(with_metaclass(TopLevelDocumentMetaclass, BaseDocument)):
                 if str(object_id) not in DryRunPeoProcessContext.changed_object_ids:
                     DryRunPeoProcessContext.changed_object_ids.append(str(object_id))
 
+            created = actually_created
 
         changed_fields = list(set([f.split('.')[0] for f in getattr(self, '_changed_fields', [])]))
         changed_fields = [self._reverse_db_field_map.get(changed_field, changed_field) for changed_field in changed_fields]

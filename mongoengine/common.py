@@ -52,6 +52,7 @@ class DryRunPeoProcessContext(ReadOnlyContext):
 
     def __enter__(self):
         ReadOnlyContext.read_only = True
+        DryRunPeoProcessContext.is_dry_run = True
         DryRunPeoProcessContext.dry_run_id = str(ObjectId())
         disable_socket()
 
