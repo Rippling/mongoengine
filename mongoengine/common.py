@@ -45,22 +45,22 @@ class ReadOnlyContext(object):
     def isActive(cls):
         return cls.read_only
 
-class DryRunPeoProcessContext(ReadOnlyContext):
+class DryRunContext(ReadOnlyContext):
     is_dry_run = False
     dry_run_id = None
     changed_object_ids = []
 
     def __enter__(self):
         ReadOnlyContext.read_only = True
-        DryRunPeoProcessContext.is_dry_run = True
-        DryRunPeoProcessContext.dry_run_id = str(ObjectId())
+        DryRunContext.is_dry_run = True
+        DryRunContext.dry_run_id = str(ObjectId())
         disable_socket()
 
     def __exit__(self, *args):
         ReadOnlyContext.read_only = False
-        DryRunPeoProcessContext.is_dry_run = False
-        DryRunPeoProcessContext.dry_run_id = None
-        DryRunPeoProcessContext.changed_object_ids = []
+        DryRunContext.is_dry_run = False
+        DryRunContext.dry_run_id = None
+        DryRunContext.changed_object_ids = []
         enable_socket()
 
     @classmethod

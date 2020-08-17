@@ -6,7 +6,7 @@ from bson import ObjectId
 from pymongo.read_preferences import ReadPreference
 from bson.dbref import DBRef
 from mongoengine import signals
-from mongoengine.common import _import_class, DryRunPeoProcessContext
+from mongoengine.common import _import_class, DryRunContext
 from mongoengine.base import (
     DocumentMetaclass,
     TopLevelDocumentMetaclass,
@@ -287,7 +287,7 @@ class Document(with_metaclass(TopLevelDocumentMetaclass, BaseDocument)):
         signals.pre_save_post_validation.send(self.__class__, document=self,
                                               created=created, **signal_kwargs)
 
-        if not DryRunPeoProcessContext.is_dry_run:
+        if not DryRunContext.is_dry_run:
             try:
                 collection = connection_manager.get_and_setup(self.__class__, alias=alias, collection_name=collection_name)
                 if created:
@@ -377,8 +377,8 @@ class Document(with_metaclass(TopLevelDocumentMetaclass, BaseDocument)):
             # new objects cannot be created in dry run and hence self.id will be none,
             # hence to pass the validation process we are assigning temp object id to the self.id
             actually_created = created
-            if not self.dryRunId:
-                self.dryRunId = DryRunPeoProcessContext.dry_run_id
+            if hasattr(self, 'dryRunId') and not self.dryRunId:
+                self.dryRunId = DryRunContext.dry_run_id
                 doc = self.to_mongo()
                 created = True
 
@@ -471,8 +471,8 @@ class Document(with_metaclass(TopLevelDocumentMetaclass, BaseDocument)):
                 if created or id_field not in self._meta.get('shard_key', []):
                     self[id_field] = self._fields[id_field].to_python(object_id)
 
-                if str(object_id) not in DryRunPeoProcessContext.changed_object_ids:
-                    DryRunPeoProcessContext.changed_object_ids.append(str(object_id))
+                if str(object_id) not in DryRunContext.changed_object_ids:
+                    DryRunContext.changed_object_ids.append(str(object_id))
 
             created = actually_created
 

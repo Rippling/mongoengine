@@ -942,6 +942,23 @@ def _get_field(doc, fields):
     return getattr(doc, 'id', None)
 
 def _dereference_dbref(value, cls):
+    from mongoengine.common import DryRunContext
+    from mongoengine.context_managers import switch_db
+    if DryRunContext.is_dry_run:
+        if str(value.id) in DryRunContext.changed_object_ids:
+            if cls._meta.get("db_alias", "") != 'dry_run':
+                with switch_db(cls, 'dry_run'):
+                    value = cls._get_db().dereference(value)
+                    if value is not None:
+                        value = cls._from_son(value)
+                return value
+        else:
+            if cls._meta.get("db_alias", "") == 'dry_run':
+                with switch_db(cls, 'default'):
+                    value = cls._get_db().dereference(value)
+                    if value is not None:
+                        value = cls._from_son(value)
+                return value
     value = cls._get_db().dereference(value)
     if value is not None:
         value = cls._from_son(value)
@@ -1126,11 +1143,6 @@ class ReferenceField(BaseField):
     def to_python(self, value, _lazy_prefetch_base=None, _fields=None, **kwargs):
         """Convert a MongoDB-compatible type to a Python type.
         """
-        from mongoengine.common import DryRunPeoProcessContext
-        if DryRunPeoProcessContext.is_dry_run:
-            return value
-
-
         if type(value) is DocumentProxy:
             return value
         if (not self.dbref and

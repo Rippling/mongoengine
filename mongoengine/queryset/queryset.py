@@ -5,7 +5,7 @@ from mongoengine.queryset.base import (BaseQuerySet, DO_NOTHING, NULLIFY,
 from mongoengine.base.proxy import LazyPrefetchBase
 from collections import defaultdict
 from six.moves import range
-from mongoengine.common import DryRunPeoProcessContext
+from mongoengine.common import DryRunContext
 from mongoengine.context_managers import switch_db
 
 __all__ = ('QuerySet', 'QuerySetNoCache', 'DO_NOTHING', 'NULLIFY', 'CASCADE',
@@ -128,15 +128,15 @@ class QuerySet(BaseQuerySet, LazyPrefetchBase):
             self._reference_cache = defaultdict(dict)
 
         if self._has_more:
-            if DryRunPeoProcessContext.is_dry_run and self._document._meta.get("db_alias", "") != 'dry_run':
+            if DryRunContext.is_dry_run and self._document._meta.get("db_alias", "") != 'dry_run':
                 queryset1 = self.clone()
-                queryset1 = queryset1.filter(id__nin=DryRunPeoProcessContext.changed_object_ids)
+                queryset1 = queryset1.filter(id__nin=DryRunContext.changed_object_ids)
                 try:
                     for i in range(ITER_CHUNK_SIZE):
                         self._result_cache.append(next(queryset1))
                 except StopIteration:
                     with switch_db(self._document, 'dry_run'):
-                        queryset2 = self.clone()
+                        queryset2 = self.clone().filter(dryRunId=DryRunContext.dry_run_id)
                         try:
                             for i in range(ITER_CHUNK_SIZE):
                                 self._result_cache.append(next(queryset2))

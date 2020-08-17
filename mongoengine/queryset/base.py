@@ -26,7 +26,7 @@ from mongoengine.queryset.field_list import QueryFieldList
 from mongoengine.queryset.visitor import Q, QNode
 from six import string_types, iteritems, text_type
 from mongoengine.context_managers import switch_db
-from mongoengine.common import DryRunPeoProcessContext
+from mongoengine.common import DryRunContext
 if IS_PYMONGO_3:
     from pymongo.collection import ReturnDocument
 
@@ -157,7 +157,7 @@ class BaseQuerySet(object):
 
     def _getitemindryrun(self, key):
         queryset = self.clone()
-        queryset = queryset.filter(id__nin=DryRunPeoProcessContext.changed_object_ids)
+        queryset = queryset.filter(id__nin=DryRunContext.changed_object_ids)
         count = queryset._cursor.count()
         if key < count:
             return queryset._document._from_son(queryset._cursor[key],
@@ -165,7 +165,7 @@ class BaseQuerySet(object):
                                                 only_fields=self.only_fields)
         key = key - count
         with switch_db(self._document, 'dry_run'):
-            queryset2 = self.clone()
+            queryset2 = self.clone().filter(dryRunId=DryRunContext.dry_run_id)
             return queryset2._document._from_son(queryset2._cursor[key],
                                                 _auto_dereference=self._auto_dereference,
                                                 only_fields=self.only_fields)
@@ -207,7 +207,7 @@ class BaseQuerySet(object):
             if queryset._as_pymongo:
                 return queryset._get_as_pymongo(queryset._cursor[key])
 
-            if DryRunPeoProcessContext.is_dry_run:
+            if DryRunContext.is_dry_run:
                 return self._getitemindryrun(key)
             return queryset._document._from_son(queryset._cursor[key],
                                                 _auto_dereference=self._auto_dereference,
@@ -275,7 +275,7 @@ class BaseQuerySet(object):
 
     def _get_for_dry_run(self, *q_objs, **query):
         queryset = self.clone()
-        queryset = queryset.filter(id__nin=DryRunPeoProcessContext.changed_object_ids)
+        queryset = queryset.filter(id__nin=DryRunContext.changed_object_ids)
         queryset = queryset.order_by().limit(2)
         queryset = queryset.filter(*q_objs, **query)
 
@@ -299,7 +299,7 @@ class BaseQuerySet(object):
                 more = True
 
         with switch_db(self._document, 'dry_run'):
-            queryset2 = self.clone()
+            queryset2 = self.clone().filter(dryRunId=DryRunContext.dry_run_id)
             queryset2 = queryset2.order_by().limit(2)
             queryset2 = queryset2.filter(*q_objs, **query)
             if not more:
@@ -332,7 +332,7 @@ class BaseQuerySet(object):
 
         .. versionadded:: 0.3
         """
-        if DryRunPeoProcessContext.is_dry_run:
+        if DryRunContext.is_dry_run:
             return self._get_for_dry_run(*q_objs, **query)
 
         queryset = self.clone()
@@ -448,11 +448,11 @@ class BaseQuerySet(object):
 
     def _count_for_dry_run(self, with_limit_and_skip=False):
         queryset = self.clone()
-        queryset = queryset.filter(id__nin=DryRunPeoProcessContext.changed_object_ids)
+        queryset = queryset.filter(id__nin=DryRunContext.changed_object_ids)
         count = queryset._cursor.count(with_limit_and_skip=with_limit_and_skip)
 
         with switch_db(self._document, 'dry_run'):
-            queryset2 = self.clone()
+            queryset2 = self.clone().filter(dryRunId=DryRunContext.dry_run_id)
             count += queryset2._cursor.count(with_limit_and_skip=with_limit_and_skip)
 
         return count
@@ -467,7 +467,7 @@ class BaseQuerySet(object):
         if self._limit == 0 and with_limit_and_skip or self._none:
             return 0
 
-        if DryRunPeoProcessContext.is_dry_run:
+        if DryRunContext.is_dry_run:
             return self._count_for_dry_run(with_limit_and_skip)
 
         return self._cursor.count(with_limit_and_skip=with_limit_and_skip)
@@ -794,7 +794,7 @@ class BaseQuerySet(object):
         .. versionadded:: 0.5
         """
 
-        if DryRunPeoProcessContext.is_dry_run and self._document._meta.get("db_alias", "") == 'dry_run':
+        if DryRunContext.is_dry_run and self._document._meta.get("db_alias", "") == 'dry_run':
             collection_obj = self._document._get_collection()
         else:
             collection_obj = self._collection_obj
@@ -821,7 +821,7 @@ class BaseQuerySet(object):
 
         if self._cursor_obj:
             cls._cursor_obj = self._cursor_obj.clone()
-            if DryRunPeoProcessContext.is_dry_run and cls._document._meta.get("db_alias", "") == 'dry_run':
+            if DryRunContext.is_dry_run and cls._document._meta.get("db_alias", "") == 'dry_run':
                 cls._cursor_obj.__collection = cls._collection_obj
 
         return cls
