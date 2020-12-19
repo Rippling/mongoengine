@@ -27,7 +27,7 @@ class LazyPrefetchBase:
     _reference_cache = None
     # decides whether to make the created DocumentProxy as being optimized using LazyPrefetchBase
     # ideally we should always mark them, but making it opt-in so that the flag can be used for optimization in very sepcific conitions
-    _should_mark_document_proxy = False
+    _should_mark_document_proxy = True
 
     def _init_reference(self):
         if self._reference_cache_count is None:
