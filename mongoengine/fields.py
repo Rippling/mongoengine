@@ -439,9 +439,6 @@ class DateTimeField(BaseField):
         if value is None:
             return value
         if isinstance(value, datetime.datetime):
-            if kwargs.get('serial_v2', False):
-                return value.astimezone(PST_TIMEZONE).isoformat()
-
             return value
         if isinstance(value, datetime.date):
             return PST_TIMEZONE.localize(datetime.datetime(
@@ -482,6 +479,13 @@ class DateTimeField(BaseField):
                                                             '%Y-%m-%d')[:3], **kwargs)
                 except ValueError:
                     return None
+
+    def to_dict_rep(self, value, **kwargs):
+        if value is None:
+            return None
+        if isinstance(value, datetime.datetime):
+            return value.astimezone(PST_TIMEZONE).isoformat()
+        return value
 
     def prepare_query_value(self, op, value):
         return super(DateTimeField, self).prepare_query_value(op, self.to_mongo(value))
@@ -607,6 +611,11 @@ class EmbeddedDocumentField(BaseField):
         if not isinstance(value, self.document_type):
             return value
         return self.document_type.to_mongo(value, **kwargs)
+
+    def to_dict_rep(self, value, **kwargs):
+        if isinstance(value, self.document_type):
+            return value.to_dict_rep(**kwargs)
+        return value
 
     def validate(self, value, clean=True):
         """Make sure that the document instance is an instance of the
@@ -768,6 +777,14 @@ class ListField(ComplexBaseField):
         to_mongo = getattr(self.field, 'to_mongo', None)
         return [to_mongo(v, **kwargs) for v in val] if to_mongo else val
 
+    def to_dict_rep(self, val, **kwargs):
+        if val is None:
+            return None
+        to_dict_rep = getattr(self.field, 'to_dict_rep', None)
+        if not to_dict_rep:
+            return val
+        return [to_dict_rep(v, **kwargs) for v in val]
+
     def validate(self, value, clean=True):
         """Make sure that a list of valid fields is being used.
         """
@@ -917,6 +934,14 @@ class DictField(ComplexBaseField):
 
         return super(DictField, self).prepare_query_value(op, value)
 
+    def to_dict_rep(self, val, **kwargs):
+        if val is None:
+            return None
+        to_dict_rep = getattr(self.field, 'to_dict_rep', None)
+        if not to_dict_rep:
+            return val
+        return {k: to_dict_rep(v, **kwargs) for k, v in iteritems(val)}
+
 
 class MapField(DictField):
     """A field that maps a name to a specified field type. Similar to
@@ -1061,9 +1086,6 @@ class ReferenceField(BaseField):
 
     def to_mongo(self, document, **kwargs):
         if type(document) is DocumentProxy:
-            if kwargs.get('serial_v2', False):
-                return str(document.id)
-
             return document.id
 
         if isinstance(document, DBRef):
@@ -1097,6 +1119,16 @@ class ReferenceField(BaseField):
             return DBRef(collection, id_)
 
         return id_
+
+    def to_dict_rep(self, value, **kwargs):
+        id_field = self.document_type._fields[self.document_type._meta['id_field']]
+        if getattr(self, 'fields', None):
+            d = {'id': id_field.to_dict_rep(value.id)}
+            for field in self.fields:
+                d[field] = getattr(value, field, None)
+            return d
+        else:
+            return id_field.to_dict_rep(value.id)
 
     def to_python(self, value, _lazy_prefetch_base=None, _fields=None, **kwargs):
         """Convert a MongoDB-compatible type to a Python type.
@@ -1290,6 +1322,13 @@ class CachedReferenceField(BaseField):
         value.update(dict(document.to_mongo(**kwargs)))
         return value
 
+    def to_dict_rep(self, value, **kwargs):
+        id_field = self.document_type._fields[self.document_type._meta['id_field']]
+        d = {'id': id_field.to_dict_rep(value.id)}
+        for field in self.fields:
+            d[field] = getattr(value, field, None)
+        return d
+
     def prepare_query_value(self, op, value):
         if value is None:
             return None
@@ -1448,6 +1487,17 @@ class GenericReferenceField(BaseField):
             ('_cls', document._class_name),
             ('_ref', ref)
         ))
+
+    def to_dict_rep(self, value, **kwargs):
+        if isinstance(value, Document):
+            _id = value.id
+            _cls = value._class_name
+        elif isinstance(value, (dict, SON)):
+            _id = value['_ref'].id
+            _cls = value['_cls']
+        else:
+            return value
+        return {'_id': _id, '_cls': _cls}
 
     def prepare_query_value(self, op, value):
         if value is None:

@@ -216,6 +216,12 @@ class BaseField(object):
         """
         return self.to_python(value)
 
+    def to_dict_rep(self, value, **kwargs):
+        """Convert a Python instance to simple python object to be stored in a dict"""
+        if self.is_v2_field():
+            return value
+        return self.to_mongo(value)
+
     def prepare_query_value(self, op, value):
         """Prepare a value that is being used in a query for PyMongo.
         """
@@ -493,11 +499,12 @@ class ObjectIdField(BaseField):
                 # e.message attribute has been deprecated since Python 2.6
                 self.error(text_type(e))
 
-        if kwargs.get('serial_v2', False):
-            # stringify for JSON
-            return str(value)
-
         return value
+
+    def to_dict_rep(self, value, **kwargs):
+        if isinstance(value, DBRef):
+            return text_type(value.id)
+        return text_type(value)
 
     def prepare_query_value(self, op, value):
         return self.to_mongo(value)

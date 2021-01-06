@@ -326,17 +326,16 @@ class BaseDocument(object):
 
         return self._data['_text_score']
 
-    def to_mongo(self, use_db_field=True, fields=None, serial_v2=False):
+    def to_mongo(self, use_db_field=True, fields=None):
         """
         Return as SON data ready for use with MongoDB.
         """
         if not fields:
             fields = []
 
-        data = {} if serial_v2 else SON()
+        data = SON()
         data["_id"] = None
         data['_cls'] = self._class_name
-        EmbeddedDocumentField = _import_class("EmbeddedDocumentField")
         # only root fields ['test1.a', 'test2'] => ['test1', 'test2']
         root_fields = set([f.split('.')[0] for f in fields])
 
@@ -362,21 +361,14 @@ class BaseDocument(object):
                 else:
                     embedded_fields = []
 
-                if serial_v2 and isinstance(field, EmbeddedDocumentField):
-                    # `serial_v2` is only used by `RPOptimizedSerializer` which re-serializes embedded document fields anyway
-                    # any data we assign to this field will be replaced
-                    value = None
-                else:
-                    value = field.to_mongo(value, use_db_field=use_db_field,
-                                           fields=embedded_fields, serial_v2=serial_v2)
+                value = field.to_mongo(value, use_db_field=use_db_field,
+                                       fields=embedded_fields)
 
             # Handle self generating fields
             if value is None:
                 if field._auto_gen:
                     value = field.generate()
                     self._data[field_name] = value
-                elif serial_v2:
-                    data[output_field_name] = None
 
             if value is not None:
                 data[output_field_name] = value
@@ -386,8 +378,6 @@ class BaseDocument(object):
         if isinstance(self, Document):
             if data["_id"] is None:
                 data["_id"] = self._data.get("id", None)
-                if data["_id"] and serial_v2:
-                    data["_id"] = str(data["_id"])
 
         if data['_id'] is None:
             data.pop('_id')
@@ -396,6 +386,27 @@ class BaseDocument(object):
         if (not hasattr(self, '_meta') or
                 not self._meta.get('allow_inheritance', ALLOW_INHERITANCE)):
             data.pop('_cls')
+
+        return data
+
+    def to_dict_rep(self, fields=None, exclude_fields=[]):
+        """
+        Return as python dictionary
+        """
+        data = {}
+
+        for field_name, field in iteritems(self._fields):
+            if (fields is not None and field_name not in fields) or (field_name in exclude_fields):
+                continue
+
+            # get value stored in document
+            value = getattr(self, field_name)
+
+            # pass value to field for processing
+            if value is not None:
+                value = field.to_dict_rep(value)
+
+            data[field_name] = value
 
         return data
 
